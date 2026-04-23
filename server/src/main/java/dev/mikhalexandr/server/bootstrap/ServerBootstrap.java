@@ -6,7 +6,7 @@ import dev.mikhalexandr.server.managers.CommandManager;
 import dev.mikhalexandr.server.managers.FileManager;
 import dev.mikhalexandr.server.managers.proxy.LoggingCommandExecutorProxy;
 import dev.mikhalexandr.server.managers.proxy.ValidatingCommandExecutorProxy;
-import dev.mikhalexandr.server.network.TcpCommandServer;
+import dev.mikhalexandr.server.network.TcpServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +35,7 @@ public class ServerBootstrap {
     LOGGER.info("Переход в цикл обработки TCP-запросов");
     CommandExecutor commandExecutor =
         new LoggingCommandExecutorProxy(new ValidatingCommandExecutorProxy(commandManager));
-    TcpCommandServer tcpCommandServer = new TcpCommandServer(port, commandExecutor);
-    tcpCommandServer.run();
+    TcpServer tcpServer = new TcpServer(port, commandExecutor);
+    tcpServer.run();
   }
 }
