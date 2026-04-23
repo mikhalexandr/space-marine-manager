@@ -1,6 +1,7 @@
 package dev.mikhalexandr.server.commands;
 
 import dev.mikhalexandr.common.dto.request.CommandRequest;
+import dev.mikhalexandr.common.dto.request.payload.CommandPayloads;
 import dev.mikhalexandr.common.dto.request.payload.IdMarinePayload;
 import dev.mikhalexandr.common.dto.request.payload.IdPayload;
 import dev.mikhalexandr.common.dto.response.CommandResponse;
@@ -29,11 +30,12 @@ public class UpdateCommand extends Command {
    */
   @Override
   public CommandResponse execute(CommandRequest request) throws CommandExecutionException {
-    if (request == null || request.getPayload() == null) {
+    if (request == null) {
       throw new CommandExecutionException("Для update требуется payload с id");
     }
 
-    if (request.getPayload() instanceof IdPayload idPayload) {
+    IdPayload idPayload = CommandPayloads.findIdPayload(request).orElse(null);
+    if (idPayload != null) {
       SpaceMarine existing = collectionManager.getById(idPayload.getId());
       if (existing == null) {
         throw new CommandExecutionException(
@@ -42,9 +44,12 @@ public class UpdateCommand extends Command {
       return CommandResponse.success("id существует");
     }
 
-    if (!(request.getPayload() instanceof IdMarinePayload payload)) {
-      throw new CommandExecutionException("Для update требуется payload вида {id + SpaceMarine}");
-    }
+    IdMarinePayload payload =
+        CommandPayloads.requireIdMarinePayload(
+            request,
+            () ->
+                new CommandExecutionException(
+                    "Для update требуется payload вида {id + SpaceMarine}"));
 
     SpaceMarine spaceMarine = payload.getSpaceMarine();
     if (spaceMarine == null) {

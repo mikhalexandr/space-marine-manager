@@ -1,6 +1,7 @@
 package dev.mikhalexandr.server.commands;
 
 import dev.mikhalexandr.common.dto.request.CommandRequest;
+import dev.mikhalexandr.common.dto.request.payload.CommandPayloads;
 import dev.mikhalexandr.common.dto.request.payload.MarinePayload;
 import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.common.models.SpaceMarine;
@@ -37,9 +38,12 @@ public class AddIfMinCommand extends Command {
 
   private static SpaceMarine extractMarine(CommandRequest request)
       throws CommandExecutionException {
-    if (request == null || !(request.getPayload() instanceof MarinePayload payload)) {
-      throw new CommandExecutionException("Для add_if_min требуется объектный payload SpaceMarine");
-    }
+    MarinePayload payload =
+        CommandPayloads.requireMarinePayload(
+            request,
+            () ->
+                new CommandExecutionException(
+                    "Для add_if_min требуется объектный payload SpaceMarine"));
     SpaceMarine spaceMarine = payload.getSpaceMarine();
     if (spaceMarine == null) {
       throw new CommandExecutionException("Для add_if_min требуется объект SpaceMarine");

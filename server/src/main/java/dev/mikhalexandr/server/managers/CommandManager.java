@@ -2,6 +2,7 @@ package dev.mikhalexandr.server.managers;
 
 import dev.mikhalexandr.common.dto.request.CommandRequest;
 import dev.mikhalexandr.common.dto.request.CommandType;
+import dev.mikhalexandr.common.dto.request.payload.CommandPayloads;
 import dev.mikhalexandr.common.dto.request.payload.RawArgumentsPayload;
 import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.server.commands.CommandContract;
@@ -40,7 +41,7 @@ public class CommandManager implements CommandExecutor {
   @Override
   public CommandResponse execute(CommandRequest request) {
     CommandResponse result;
-    if (request == null || request.getCommandType() == null) {
+    if (request == null) {
       result = CommandResponse.error("Пустая команда");
     } else {
       CommandType commandType = request.getCommandType();
@@ -75,7 +76,9 @@ public class CommandManager implements CommandExecutor {
   }
 
   private static String extractUnknownCommandName(CommandRequest request) {
-    if (request.getPayload() instanceof RawArgumentsPayload rawArgumentsPayload) {
+    RawArgumentsPayload rawArgumentsPayload =
+        CommandPayloads.findRawArgumentsPayload(request).orElse(null);
+    if (rawArgumentsPayload != null) {
       String[] arguments = rawArgumentsPayload.getArguments();
       if (arguments.length > 0) {
         return arguments[0];

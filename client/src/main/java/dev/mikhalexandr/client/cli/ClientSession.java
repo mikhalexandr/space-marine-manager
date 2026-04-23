@@ -12,6 +12,7 @@ import dev.mikhalexandr.client.io.InputHandler;
 import dev.mikhalexandr.client.network.TcpClient;
 import dev.mikhalexandr.common.dto.request.CommandRequest;
 import dev.mikhalexandr.common.dto.request.CommandType;
+import dev.mikhalexandr.common.dto.request.payload.CommandPayloads;
 import dev.mikhalexandr.common.dto.request.payload.IdMarinePayload;
 import dev.mikhalexandr.common.dto.request.payload.IdPayload;
 import dev.mikhalexandr.common.dto.request.payload.MarinePayload;
@@ -216,7 +217,8 @@ public final class ClientSession {
     }
 
     if (request.getCommandType() == CommandType.UPDATE) {
-      if (!(request.getPayload() instanceof IdPayload idPayload)) {
+      IdPayload idPayload = CommandPayloads.findIdPayload(request).orElse(null);
+      if (idPayload == null) {
         printResponseLine("Использование: update <id>");
         return null;
       }
@@ -229,7 +231,7 @@ public final class ClientSession {
   }
 
   private boolean ensureUpdateTargetExists(CommandRequest request) {
-    if (!(request.getPayload() instanceof IdPayload)) {
+    if (CommandPayloads.findIdPayload(request).isEmpty()) {
       printResponseLine("Использование: update <id>");
       return false;
     }
