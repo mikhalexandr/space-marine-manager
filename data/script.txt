@@ -1,0 +1,10 @@
+help
+show
+add
+2
+2
+2
+2
+2
+info
+

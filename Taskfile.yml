@@ -1,0 +1,48 @@
+version: '3'
+
+vars:
+  DATA_FILE:
+    data/data.json
+  SERVER_JAR:
+    server/build/libs/server-*-jar-with-dependencies.jar
+  CLIENT_JAR:
+    client/build/libs/client-*-jar-with-dependencies.jar
+
+tasks:
+  build:
+    desc: Build all modules with Gradle
+    cmds:
+      - ./gradlew build jarWithDeps
+
+  rebuild:
+    desc: Clean and rebuild all modules with Gradle
+    cmds:
+      - rm -rf .gradle/configuration-cache
+      - ./gradlew --no-configuration-cache clean build jarWithDeps
+
+  checkstyle:
+    desc: Check code style and rules
+    cmds:
+      - ./gradlew check
+
+  format:
+    desc: Autoformat Java code
+    cmds:
+      - ./gradlew spotlessApply
+
+  javadoc:
+    desc: Build JavaDoc
+    cmds:
+      - ./gradlew javadoc
+
+  run:server:
+    desc: Build and run server
+    cmds:
+      - ./gradlew :server:jarWithDeps
+      - java -jar {{.SERVER_JAR}} {{.DATA_FILE}}
+
+  run:client:
+    desc: Build and run client
+    cmds:
+      - ./gradlew :client:jarWithDeps
+      - java -jar {{.CLIENT_JAR}}

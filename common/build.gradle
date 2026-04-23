@@ -1,0 +1,5 @@
+tasks.register('jarWithDeps', Jar) {
+    archiveClassifier = 'jar-with-dependencies'
+    from sourceSets.main.output
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
