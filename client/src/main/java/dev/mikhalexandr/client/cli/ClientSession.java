@@ -1,5 +1,12 @@
 package dev.mikhalexandr.client.cli;
 
+import dev.mikhalexandr.client.cli.strategy.CommandStrategy;
+import dev.mikhalexandr.client.cli.strategy.ExecuteScriptCommandStrategy;
+import dev.mikhalexandr.client.cli.strategy.ExitCommandStrategy;
+import dev.mikhalexandr.client.cli.strategy.ServerCommandStrategy;
+import dev.mikhalexandr.client.cli.strategy.StrategyActions;
+import dev.mikhalexandr.client.cli.strategy.UnsupportedClientCommandStrategy;
+import dev.mikhalexandr.client.cli.strategy.UpdateCommandStrategy;
 import dev.mikhalexandr.client.commands.CommandRequestParser;
 import dev.mikhalexandr.client.io.InputHandler;
 import dev.mikhalexandr.client.network.TcpClient;
@@ -15,6 +22,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Scanner;
 
 /** Интерактивная сессия клиента: цикл ввода и выполнение команд. */
@@ -25,12 +34,18 @@ public final class ClientSession {
   private final CommandRequestParser parser;
   private final InputHandler marineInputReader;
   private final TcpClient tcpClient;
+  private final Map<CommandType, CommandStrategy> commandStrategies;
+  private final CommandStrategy defaultCommandStrategy;
+  private final CommandStrategy unsupportedClientCommandStrategy;
 
   public ClientSession(
       CommandRequestParser parser, InputHandler marineInputReader, TcpClient tcpClient) {
     this.parser = parser;
     this.marineInputReader = marineInputReader;
     this.tcpClient = tcpClient;
+    this.defaultCommandStrategy = new ServerCommandStrategy();
+    this.unsupportedClientCommandStrategy = new UnsupportedClientCommandStrategy();
+    this.commandStrategies = createCommandStrategies();
   }
 
   /** Запускает цикл чтения команд из консоли/скриптов. */
@@ -65,21 +80,39 @@ public final class ClientSession {
   private boolean processInputLine(
       String rawCommand, InputContext currentInput, Deque<InputContext> inputs) {
     CommandRequest request = parser.parse(rawCommand);
-    boolean continueLoop = true;
-    if (request != null) {
-      CommandType commandType = request.getCommandType();
-      if (commandType == CommandType.EXIT) {
-        continueLoop = false;
-      } else if (commandType != CommandType.UNKNOWN && !commandType.isServerTransmittable()) {
-        printResponseLine("Эта команда недоступна в клиенте");
-      } else if (commandType == CommandType.EXECUTE_SCRIPT) {
-        pushScriptInput(rawCommand, inputs);
-      } else if (commandType != CommandType.UPDATE || ensureUpdateTargetExists(request)) {
-        processRequestWithEntityPayload(request, currentInput);
-      }
+    if (request == null) {
+      return true;
     }
-    // паттерн стратегия
-    return continueLoop;
+
+    StrategyActions strategyActions =
+        new StrategyActions(
+            () -> processRequestWithEntityPayload(request, currentInput),
+            () -> pushScriptInput(rawCommand, inputs),
+            () -> ensureUpdateTargetExists(request),
+            ClientSession::printResponseLine);
+    CommandStrategy strategy = resolveCommandStrategy(request.getCommandType());
+    return strategy.handle(strategyActions);
+  }
+
+  private Map<CommandType, CommandStrategy> createCommandStrategies() {
+    Map<CommandType, CommandStrategy> strategies = new EnumMap<>(CommandType.class);
+    strategies.put(CommandType.EXIT, new ExitCommandStrategy());
+    strategies.put(CommandType.EXECUTE_SCRIPT, new ExecuteScriptCommandStrategy());
+    strategies.put(CommandType.UPDATE, new UpdateCommandStrategy());
+    return strategies;
+  }
+
+  private CommandStrategy resolveCommandStrategy(CommandType commandType) {
+    CommandStrategy strategy = commandStrategies.get(commandType);
+    if (strategy != null) {
+      return strategy;
+    }
+
+    if (commandType != CommandType.UNKNOWN && !commandType.isServerTransmittable()) {
+      return unsupportedClientCommandStrategy;
+    }
+
+    return defaultCommandStrategy;
   }
 
   private void processRequestWithEntityPayload(CommandRequest request, InputContext currentInput) {
