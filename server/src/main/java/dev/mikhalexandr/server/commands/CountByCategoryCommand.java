@@ -2,6 +2,7 @@ package dev.mikhalexandr.server.commands;
 
 import dev.mikhalexandr.common.dto.request.CommandRequest;
 import dev.mikhalexandr.common.dto.request.payload.CategoryPayload;
+import dev.mikhalexandr.common.dto.request.payload.CommandPayloads;
 import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.common.models.AstartesCategory;
 import dev.mikhalexandr.server.exceptions.CommandExecutionException;
@@ -36,10 +37,12 @@ public class CountByCategoryCommand extends Command {
 
   private static AstartesCategory resolveCategory(CommandRequest request)
       throws CommandExecutionException {
-    if (request == null || !(request.getPayload() instanceof CategoryPayload payload)) {
-      throw new CommandExecutionException(
-          "Для count_by_category требуется payload с полем category");
-    }
+    CategoryPayload payload =
+        CommandPayloads.requireCategoryPayload(
+            request,
+            () ->
+                new CommandExecutionException(
+                    "Для count_by_category требуется payload с полем category"));
     if (payload.getCategory() == null) {
       throw new CommandExecutionException(
           "Для count_by_category payload.category не может быть null");

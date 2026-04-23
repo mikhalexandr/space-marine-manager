@@ -1,6 +1,7 @@
 package dev.mikhalexandr.server.commands;
 
 import dev.mikhalexandr.common.dto.request.CommandRequest;
+import dev.mikhalexandr.common.dto.request.payload.CommandPayloads;
 import dev.mikhalexandr.common.dto.request.payload.IdPayload;
 import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.server.exceptions.CommandExecutionException;
@@ -35,9 +36,10 @@ public class RemoveByIdCommand extends Command {
   }
 
   private int resolveId(CommandRequest request) throws CommandExecutionException {
-    if (request == null || !(request.getPayload() instanceof IdPayload idPayload)) {
-      throw new CommandExecutionException("Для remove_by_id требуется payload с полем id");
-    }
+    IdPayload idPayload =
+        CommandPayloads.requireIdPayload(
+            request,
+            () -> new CommandExecutionException("Для remove_by_id требуется payload с полем id"));
     return idPayload.getId();
   }
 }
