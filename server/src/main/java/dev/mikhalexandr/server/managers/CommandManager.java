@@ -96,7 +96,7 @@ public class CommandManager implements CommandExecutor {
     String info = name + " " + args;
     history.add(info);
     if (history.size() > HISTORY_SIZE) {
-      history.removeFirst();
+      history.remove(0);
     }
   }
 
