@@ -24,9 +24,6 @@ public class ServerBootstrap {
     FileManager fileManager = new FileManager(collectionFilePath);
     CommandManager commandManager = new CommandManager();
 
-    Runtime.getRuntime()
-        .addShutdownHook(new Thread(() -> fileManager.save(collectionManager.getCollection())));
-
     LOGGER.info("Загрузка коллекции из файла: {}", collectionFilePath);
     collectionLoader.load(collectionManager, fileManager);
     LOGGER.info("Регистрация команд сервера");
@@ -36,6 +33,13 @@ public class ServerBootstrap {
     CommandExecutor commandExecutor =
         new LoggingCommandExecutorProxy(new ValidatingCommandExecutorProxy(commandManager));
     TcpServer tcpServer = new TcpServer(port, commandExecutor);
+    Runtime.getRuntime()
+        .addShutdownHook(
+            new Thread(
+                () -> {
+                  tcpServer.stop();
+                  fileManager.save(collectionManager.getCollection());
+                }));
     tcpServer.run();
   }
 }

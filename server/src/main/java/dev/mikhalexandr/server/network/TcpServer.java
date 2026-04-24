@@ -21,11 +21,12 @@ import org.slf4j.LoggerFactory;
 public class TcpServer {
   private static final Logger LOGGER = LoggerFactory.getLogger(TcpServer.class);
   private static final int MAX_FRAME_SIZE = 8 * 1024 * 1024;
-  private static final int SELECT_TIMEOUT_MILLIS = 200;
 
   private final int port;
   private final CommandExecutor commandExecutor;
   private final ExecutorService requestExecutor;
+  private volatile boolean running;
+  private volatile Selector selector;
 
   public TcpServer(int port, CommandExecutor commandExecutor) {
     this.port = port;
@@ -35,38 +36,52 @@ public class TcpServer {
 
   /** Запускает серверный цикл обработки подключений. */
   public void run() {
-    try (Selector selector = Selector.open();
+    running = true;
+    try (Selector serverSelector = Selector.open();
         ServerSocketChannel serverChannel = ServerSocketChannel.open()) {
-      initServerChannel(serverChannel, selector);
+      this.selector = serverSelector;
+      initServerChannel(serverChannel, serverSelector);
       LOGGER.info("Сервер запущен и слушает TCP-порт {}", port);
-      eventLoop(selector);
+      eventLoop(serverSelector);
     } catch (IOException e) {
       shutdownExecutor();
       throw new IllegalStateException("Не удалось запустить TCP-сервер", e);
+    } finally {
+      running = false;
+      this.selector = null;
     }
   }
 
-  private void initServerChannel(ServerSocketChannel serverChannel, Selector selector)
+  /** Останавливает серверный цикл и будит Selector, если он ждет новых событий. */
+  public void stop() {
+    running = false;
+    Selector currentSelector = selector;
+    if (currentSelector != null) {
+      currentSelector.wakeup();
+    }
+  }
+
+  private void initServerChannel(ServerSocketChannel serverChannel, Selector serverSelector)
       throws IOException {
     serverChannel.configureBlocking(false);
     serverChannel.bind(new InetSocketAddress(port));
-    serverChannel.register(selector, SelectionKey.OP_ACCEPT);
+    serverChannel.register(serverSelector, SelectionKey.OP_ACCEPT);
   }
 
-  private void eventLoop(Selector selector) throws IOException {
+  private void eventLoop(Selector serverSelector) throws IOException {
     try {
-      while (!Thread.currentThread().isInterrupted()) {
-        selector.select(SELECT_TIMEOUT_MILLIS);
-        processSelectedKeys(selector);
+      while (running && !Thread.currentThread().isInterrupted()) {
+        serverSelector.select();
+        processSelectedKeys(serverSelector);
       }
     } finally {
       shutdownExecutor();
-      closeRegisteredChannels(selector);
+      closeRegisteredChannels(serverSelector);
     }
   }
 
-  private void processSelectedKeys(Selector selector) throws IOException {
-    Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
+  private void processSelectedKeys(Selector serverSelector) throws IOException {
+    Iterator<SelectionKey> iterator = serverSelector.selectedKeys().iterator();
     while (iterator.hasNext()) {
       SelectionKey key = iterator.next();
       iterator.remove();
@@ -74,7 +89,7 @@ public class TcpServer {
         continue;
       }
       if (key.isAcceptable()) {
-        acceptClient(selector, key);
+        acceptClient(serverSelector, key);
         continue;
       }
       if (key.isReadable()) {
@@ -86,7 +101,7 @@ public class TcpServer {
     }
   }
 
-  private void acceptClient(Selector selector, SelectionKey key) throws IOException {
+  private void acceptClient(Selector serverSelector, SelectionKey key) throws IOException {
     ServerSocketChannel serverChannel = (ServerSocketChannel) key.channel();
     SocketChannel clientChannel = serverChannel.accept();
     if (clientChannel == null) {
@@ -95,7 +110,7 @@ public class TcpServer {
 
     clientChannel.configureBlocking(false);
     ClientConnection connection = new ClientConnection(clientChannel.getRemoteAddress());
-    clientChannel.register(selector, SelectionKey.OP_READ, connection);
+    clientChannel.register(serverSelector, SelectionKey.OP_READ, connection);
     LOGGER.debug("Новое подключение: {}", connection.remoteAddress());
   }
 
@@ -253,8 +268,8 @@ public class TcpServer {
     key.cancel();
   }
 
-  private void closeRegisteredChannels(Selector selector) {
-    for (SelectionKey key : selector.keys()) {
+  private void closeRegisteredChannels(Selector serverSelector) {
+    for (SelectionKey key : serverSelector.keys()) {
       closeKey(key);
     }
   }
