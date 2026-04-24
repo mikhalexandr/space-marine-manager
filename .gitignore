@@ -29,3 +29,6 @@ logs/
 # Gradle
 .gradle/
 build/
+
+# Local environment
+*.env*

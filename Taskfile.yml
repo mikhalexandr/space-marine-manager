@@ -1,5 +1,8 @@
 version: '3'
 
+dotenv:
+  - .env
+
 vars:
   DATA_FILE:
     data/data.json
@@ -39,10 +42,15 @@ tasks:
     desc: Build and run server
     cmds:
       - ./gradlew :server:jarWithDeps
-      - java -jar {{.SERVER_JAR}} {{.DATA_FILE}}
+      - java -jar {{.SERVER_JAR}} {{.DATA_FILE}} {{.CLI_ARGS}}
 
   run:client:
     desc: Build and run client
     cmds:
       - ./gradlew :client:jarWithDeps
-      - java -jar {{.CLIENT_JAR}}
+      - java -jar {{.CLIENT_JAR}} {{.CLI_ARGS}}
+
+  tunnel:helios:
+    desc: Open SSH tunnel
+    cmds:
+      - ssh -p "${SSH_PORT}" "${SSH_USERNAME}@${SSH_HOST}" -L "${TUNNEL_LOCAL_PORT}:${TUNNEL_REMOTE_HOST}:${TUNNEL_REMOTE_PORT}"
