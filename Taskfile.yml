@@ -51,6 +51,6 @@ tasks:
       - java -jar {{.CLIENT_JAR}} {{.CLI_ARGS}}
 
   tunnel:helios:
-    desc: Open SSH tunnel
+    desc: Open SSH tunnel to Helios
     cmds:
       - ssh -p "${SSH_PORT}" "${SSH_USERNAME}@${SSH_HOST}" -L "${TUNNEL_LOCAL_PORT}:${TUNNEL_REMOTE_HOST}:${TUNNEL_REMOTE_PORT}"
