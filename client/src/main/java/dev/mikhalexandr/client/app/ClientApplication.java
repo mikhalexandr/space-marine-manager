@@ -17,34 +17,56 @@ public final class ClientApplication {
 
   /** Запускает клиент с переданными аргументами. */
   public void start(String[] args) {
-    TcpClient tcpClient = buildTcpClient(args);
+    ClientEndpoint endpoint = parseEndpoint(args);
+    TcpClient tcpClient = buildTcpClient(endpoint);
     if (tcpClient == null) {
       return;
     }
 
-    printWelcome(args);
+    printWelcome(endpoint);
     ClientSession session =
         new ClientSession(new CommandRequestParser(), new InputHandler(), tcpClient);
     session.run();
   }
 
-  private static TcpClient buildTcpClient(String[] args) {
-    String host = args.length > 0 ? args[0] : DEFAULT_HOST;
-
+  private static TcpClient buildTcpClient(ClientEndpoint endpoint) {
     try {
-      int port = args.length > 1 ? parsePort(args[1]) : DEFAULT_PORT;
       return new TcpClient(
-          host, port, MAX_RETRY_ATTEMPTS, CONNECT_TIMEOUT_MILLIS, REQUEST_TIMEOUT_MILLIS);
+          endpoint.host(),
+          endpoint.port(),
+          MAX_RETRY_ATTEMPTS,
+          CONNECT_TIMEOUT_MILLIS,
+          REQUEST_TIMEOUT_MILLIS);
     } catch (IllegalArgumentException e) {
       System.err.println("Ошибка запуска клиента: " + e.getMessage());
       return null;
     }
   }
 
-  private static void printWelcome(String[] args) {
-    String host = args.length > 0 ? args[0] : DEFAULT_HOST;
-    int port = args.length > 1 ? parsePort(args[1]) : DEFAULT_PORT;
-    System.out.printf("Клиент запущен. Сервер: %s:%d%n", host, port);
+  private static ClientEndpoint parseEndpoint(String[] args) {
+    if (args.length == 0) {
+      return new ClientEndpoint(DEFAULT_HOST, DEFAULT_PORT);
+    }
+    if (args.length == 1) {
+      if (isPortArgument(args[0])) {
+        return new ClientEndpoint(DEFAULT_HOST, parsePort(args[0]));
+      }
+      return new ClientEndpoint(args[0], DEFAULT_PORT);
+    }
+    return new ClientEndpoint(args[0], parsePort(args[1]));
+  }
+
+  private static boolean isPortArgument(String arg) {
+    try {
+      Integer.parseInt(arg);
+      return true;
+    } catch (NumberFormatException e) {
+      return false;
+    }
+  }
+
+  private static void printWelcome(ClientEndpoint endpoint) {
+    System.out.printf("Клиент запущен. Сервер: %s:%d%n", endpoint.host(), endpoint.port());
     System.out.println("Введите команду (exit для выхода):");
   }
 
@@ -60,4 +82,6 @@ public final class ClientApplication {
       throw new IllegalArgumentException("Порт клиента должен быть целым числом", e);
     }
   }
+
+  private record ClientEndpoint(String host, int port) {}
 }
