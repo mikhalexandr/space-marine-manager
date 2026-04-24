@@ -25,7 +25,7 @@ jobs:
           git submodule update --remote lab5-8
 
           if [[ -n $(git status -s) ]]; then
-            git add space-marine-manager
+            git add lab5-8
             git commit -m "chore(lab5-8): bump submodule pointer"
             git push
             echo "Success: Parent repository bumped!"
