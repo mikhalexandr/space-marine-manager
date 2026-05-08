@@ -1,5 +1,6 @@
 package dev.mikhalexandr.server.network;
 
+import dev.mikhalexandr.common.security.crypto.SessionCipher;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 
@@ -10,9 +11,24 @@ final class ClientConnection {
   private ByteBuffer payloadBuffer;
   private ByteBuffer responseBuffer;
   private boolean requestInFlight;
+  private HandshakeStage handshakeStage = HandshakeStage.AWAITING_HELLO;
+  private SessionCipher sessionCipher;
 
   ClientConnection(SocketAddress remoteAddress) {
     this.remoteAddress = String.valueOf(remoteAddress);
+  }
+
+  HandshakeStage handshakeStage() {
+    return handshakeStage;
+  }
+
+  void markEstablished(SessionCipher cipher) {
+    this.sessionCipher = cipher;
+    handshakeStage = HandshakeStage.ESTABLISHED;
+  }
+
+  SessionCipher sessionCipher() {
+    return sessionCipher;
   }
 
   ByteBuffer lengthBuffer() {
@@ -60,5 +76,11 @@ final class ClientConnection {
 
   void clearResponseBuffer() {
     responseBuffer = null;
+  }
+
+  /** Стадия рукопожатия одного соединения. */
+  enum HandshakeStage {
+    AWAITING_HELLO,
+    ESTABLISHED
   }
 }

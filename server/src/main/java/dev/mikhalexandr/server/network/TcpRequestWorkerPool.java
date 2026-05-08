@@ -6,7 +6,9 @@ import java.util.concurrent.ThreadFactory;
 
 /** Фабрика пула потоков для выполнения сервачковых команд вне selector loopа. */
 final class TcpRequestWorkerPool {
-  private TcpRequestWorkerPool() {}
+  private TcpRequestWorkerPool() {
+    throw new UnsupportedOperationException("Это утилитарный класс, его нельзя инстанцировать");
+  }
 
   static ExecutorService create() {
     return Executors.newFixedThreadPool(resolveWorkerCount(), new WorkerFactory());

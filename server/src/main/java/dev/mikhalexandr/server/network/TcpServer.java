@@ -3,8 +3,19 @@ package dev.mikhalexandr.server.network;
 import dev.mikhalexandr.common.dto.request.CommandRequest;
 import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.common.protocol.FrameCodec;
+import dev.mikhalexandr.common.security.cert.CertificateUtils;
+import dev.mikhalexandr.common.security.crypto.KeyAgreementService;
+import dev.mikhalexandr.common.security.crypto.MessageSigner;
+import dev.mikhalexandr.common.security.crypto.SessionCipher;
+import dev.mikhalexandr.common.security.crypto.SessionKeys;
+import dev.mikhalexandr.common.security.handshake.ClientHello;
+import dev.mikhalexandr.common.security.handshake.HandshakeMessage;
+import dev.mikhalexandr.common.security.handshake.ServerHello;
+import dev.mikhalexandr.common.util.Bytes;
 import dev.mikhalexandr.common.util.Serializer;
 import dev.mikhalexandr.server.managers.CommandExecutor;
+import dev.mikhalexandr.server.network.ClientConnection.HandshakeStage;
+import dev.mikhalexandr.server.security.ServerIdentity;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -12,6 +23,8 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.security.KeyPair;
+import java.security.PublicKey;
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import org.slf4j.Logger;
@@ -24,13 +37,15 @@ public class TcpServer {
 
   private final int port;
   private final CommandExecutor commandExecutor;
+  private final ServerIdentity serverIdentity;
   private final ExecutorService requestExecutor;
   private volatile boolean running;
   private volatile Selector selector;
 
-  public TcpServer(int port, CommandExecutor commandExecutor) {
+  public TcpServer(int port, CommandExecutor commandExecutor, ServerIdentity serverIdentity) {
     this.port = port;
     this.commandExecutor = commandExecutor;
+    this.serverIdentity = serverIdentity;
     this.requestExecutor = TcpRequestWorkerPool.create();
   }
 
@@ -122,10 +137,15 @@ public class TcpServer {
       return;
     }
 
-    CommandRequest request = deserializeRequest(connection.takePayload());
+    byte[] payload = connection.takePayload();
     connection.markRequestInFlight();
     key.interestOps(key.interestOps() & ~SelectionKey.OP_READ);
-    dispatchRequest(key, request, connection);
+
+    if (connection.handshakeStage() == HandshakeStage.ESTABLISHED) {
+      dispatchRequest(key, payload, connection);
+      return;
+    }
+    dispatchHandshake(key, payload, connection);
   }
 
   private boolean readFrame(SocketChannel channel, ClientConnection connection) throws IOException {
@@ -173,31 +193,92 @@ public class TcpServer {
     }
   }
 
-  private void dispatchRequest(
-      SelectionKey key, CommandRequest request, ClientConnection connection) {
-    String command = request == null ? "<null>" : request.getCommandType().getWireName();
-    String requestId = request == null ? "<null>" : request.getRequestId();
-    LOGGER.info(
-        "Получен новый запрос от {}: command={}, requestId={}",
-        connection.remoteAddress(),
-        command,
-        requestId);
+  private void dispatchHandshake(SelectionKey key, byte[] payload, ClientConnection connection) {
+    String remoteAddress = connection.remoteAddress();
+    LOGGER.info("Получен handshake-фрейм от {}, payload={} байт", remoteAddress, payload.length);
+    requestExecutor.submit(() -> processHandshakeAsync(key, payload, connection, remoteAddress));
+  }
 
+  private void processHandshakeAsync(
+      SelectionKey key, byte[] payload, ClientConnection connection, String remoteAddress) {
+    try {
+      HandshakeMessage message = deserializeHandshake(payload);
+      handleClientHello(key, connection, message.asClientHello(), remoteAddress);
+    } catch (IOException e) {
+      LOGGER.warn("Ошибка handshake с {}: {}", remoteAddress, e.getMessage());
+      closeKey(key);
+    }
+  }
+
+  private void handleClientHello(
+      SelectionKey key, ClientConnection connection, ClientHello hello, String remoteAddress)
+      throws IOException {
+    LOGGER.info("ClientHello от {}: clientId={}", remoteAddress, hello.clientId());
+    PublicKey clientEphemeral = KeyAgreementService.decodePublicKey(hello.ephemeralPublicKey());
+    KeyPair serverEphemeral = KeyAgreementService.generateEphemeralKeyPair();
+    byte[] serverEphemeralEncoded =
+        KeyAgreementService.encodePublicKey(serverEphemeral.getPublic());
+
+    byte[] transcript = Bytes.concat(hello.ephemeralPublicKey(), serverEphemeralEncoded);
+    byte[] signature = MessageSigner.sign(transcript, serverIdentity.privateKey());
+
+    byte[] sharedSecret =
+        KeyAgreementService.computeSharedSecret(serverEphemeral.getPrivate(), clientEphemeral);
+    byte[] transcriptHash =
+        KeyAgreementService.transcriptHash(hello.ephemeralPublicKey(), serverEphemeralEncoded);
+    SessionKeys keys = KeyAgreementService.deriveSessionKeys(sharedSecret, transcriptHash);
+    SessionCipher cipher = new SessionCipher(keys.serverToClient(), keys.clientToServer());
+
+    ServerHello reply =
+        new ServerHello(
+            CertificateUtils.encodeCertificate(serverIdentity.certificate()),
+            serverEphemeralEncoded,
+            signature);
+    byte[] replyBytes = Serializer.serialize(reply);
+    connection.enqueueResponse(ByteBuffer.wrap(FrameCodec.toFrame(replyBytes)));
+    connection.markEstablished(cipher);
+    key.interestOps(SelectionKey.OP_WRITE);
+    key.selector().wakeup();
+    LOGGER.info(
+        "ServerHello отправлен {}, ECDH согласован, сессия зашифрована (frame={} байт)",
+        remoteAddress,
+        replyBytes.length);
+  }
+
+  private static HandshakeMessage deserializeHandshake(byte[] payload) throws IOException {
+    try {
+      return Serializer.deserialize(payload, HandshakeMessage.class);
+    } catch (ClassNotFoundException e) {
+      throw new IOException("Не удалось десериализовать handshake-фрейм", e);
+    }
+  }
+
+  private void dispatchRequest(
+      SelectionKey key, byte[] encryptedPayload, ClientConnection connection) {
+    String remoteAddress = connection.remoteAddress();
     requestExecutor.submit(
-        () -> processRequestAsync(key, request, connection.remoteAddress(), command, requestId));
+        () -> processRequestAsync(key, encryptedPayload, connection, remoteAddress));
   }
 
   private void processRequestAsync(
       SelectionKey key,
-      CommandRequest request,
-      String remoteAddress,
-      String command,
-      String requestId) {
+      byte[] encryptedPayload,
+      ClientConnection connection,
+      String remoteAddress) {
     try {
+      byte[] plaintext = connection.sessionCipher().decrypt(encryptedPayload);
+      CommandRequest request = deserializeRequest(plaintext);
+      String command = request == null ? "<null>" : request.getCommandType().getWireName();
+      String requestId = request == null ? "<null>" : request.getRequestId();
+      LOGGER.info(
+          "Получен новый запрос от {}: command={}, requestId={}",
+          remoteAddress,
+          command,
+          requestId);
       CommandResponse response = commandExecutor.execute(request);
-      enqueueResponse(key, response, remoteAddress, command, requestId);
+      enqueueEncryptedResponse(key, connection, response, remoteAddress, command, requestId);
     } catch (IOException e) {
-      LOGGER.warn("Не удалось сериализовать ответ для {}", remoteAddress, e);
+      LOGGER.warn("Не удалось обработать запрос для {}", remoteAddress, e);
       closeKey(key);
     } catch (RuntimeException e) {
       LOGGER.warn("Ошибка выполнения команды для {}", remoteAddress, e);
@@ -205,15 +286,17 @@ public class TcpServer {
     }
   }
 
-  private void enqueueResponse(
+  private void enqueueEncryptedResponse(
       SelectionKey key,
+      ClientConnection connection,
       CommandResponse response,
       String remoteAddress,
       String command,
       String requestId)
       throws IOException {
-    ClientConnection connection = connectionOf(key);
-    connection.enqueueResponse(ByteBuffer.wrap(FrameCodec.toFrame(serializeResponse(response))));
+    byte[] responseBytes = Serializer.serialize(response);
+    byte[] encrypted = connection.sessionCipher().encrypt(responseBytes);
+    connection.enqueueResponse(ByteBuffer.wrap(FrameCodec.toFrame(encrypted)));
     key.interestOps(SelectionKey.OP_WRITE);
     key.selector().wakeup();
 
@@ -225,10 +308,6 @@ public class TcpServer {
         response.isSuccess(),
         response.getData() == null ? 0 : response.getData().size(),
         response.getMessage() == null ? 0 : response.getMessage().length());
-  }
-
-  private static byte[] serializeResponse(CommandResponse response) throws IOException {
-    return Serializer.serialize(response);
   }
 
   private void writeToClient(SelectionKey key) throws IOException {
