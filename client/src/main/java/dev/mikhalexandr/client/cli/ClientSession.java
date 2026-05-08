@@ -75,6 +75,8 @@ public final class ClientSession {
       while (!inputs.isEmpty()) {
         closeInputContext(inputs.pop());
       }
+    } finally {
+      tcpClient.close();
     }
   }
 

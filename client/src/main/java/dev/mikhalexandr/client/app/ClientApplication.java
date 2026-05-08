@@ -4,21 +4,31 @@ import dev.mikhalexandr.client.cli.ClientSession;
 import dev.mikhalexandr.client.commands.CommandRequestParser;
 import dev.mikhalexandr.client.io.InputHandler;
 import dev.mikhalexandr.client.network.TcpClient;
+import dev.mikhalexandr.client.security.TrustAnchor;
+import dev.mikhalexandr.common.util.Env;
+import java.io.IOException;
+import java.nio.file.Path;
 
 /** Оркестратор клиентского приложения: инициализация и запуск сессии. */
 public final class ClientApplication {
-  private static final String DEFAULT_HOST = "127.0.0.1";
+  private static final String DEFAULT_HOST = "localhost";
   private static final int DEFAULT_PORT = 5050;
   private static final int MIN_PORT = 1;
   private static final int MAX_PORT = 65535;
   private static final int MAX_RETRY_ATTEMPTS = 3;
   private static final long CONNECT_TIMEOUT_MILLIS = 2000;
   private static final long REQUEST_TIMEOUT_MILLIS = 5000;
+  private static final String ENV_CA_CERT_PATH = "CA_CERT_PATH";
+  private static final String DEFAULT_CA_CERT_PATH = "certs/ca.crt";
 
   /** Запускает клиент с переданными аргументами. */
   public void start(String[] args) {
     ClientEndpoint endpoint = parseEndpoint(args);
-    TcpClient tcpClient = buildTcpClient(endpoint);
+    TrustAnchor trustAnchor = loadTrustAnchor();
+    if (trustAnchor == null) {
+      return;
+    }
+    TcpClient tcpClient = buildTcpClient(endpoint, trustAnchor);
     if (tcpClient == null) {
       return;
     }
@@ -29,14 +39,25 @@ public final class ClientApplication {
     session.run();
   }
 
-  private static TcpClient buildTcpClient(ClientEndpoint endpoint) {
+  private static TrustAnchor loadTrustAnchor() {
+    String caCertPath = Env.orDefault(ENV_CA_CERT_PATH, DEFAULT_CA_CERT_PATH);
+    try {
+      return TrustAnchor.loadFromFile(Path.of(caCertPath));
+    } catch (IOException e) {
+      System.err.println("Не удалось загрузить " + caCertPath);
+      return null;
+    }
+  }
+
+  private static TcpClient buildTcpClient(ClientEndpoint endpoint, TrustAnchor trustAnchor) {
     try {
       return new TcpClient(
           endpoint.host(),
           endpoint.port(),
           MAX_RETRY_ATTEMPTS,
           CONNECT_TIMEOUT_MILLIS,
-          REQUEST_TIMEOUT_MILLIS);
+          REQUEST_TIMEOUT_MILLIS,
+          trustAnchor);
     } catch (IllegalArgumentException e) {
       System.err.println("Ошибка запуска клиента: " + e.getMessage());
       return null;
