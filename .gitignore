@@ -31,4 +31,13 @@ logs/
 build/
 
 # Local environment
-*.env*
+.env
+
+# Keys and certificates
+certs/
+*.key
+*.crt
+*.csr
+*.srl
+*.p12
+*.pem

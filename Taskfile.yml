@@ -38,6 +38,10 @@ tasks:
     cmds:
       - ./gradlew javadoc
 
+  certs:gen:
+    cmds:
+      - ./scripts/gen-certs.sh
+
   run:server:
     desc: Build and run server
     cmds:
