@@ -65,8 +65,8 @@ public final class KeyAgreementService {
   }
 
   /**
-   * Считает общий секрет ECDH из своего приватного и чужого публичного эфемерных
-   * (чётенькое название для одноразовых) ключей
+   * Считает общий секрет ECDH из своего приватного и чужого публичного эфемерных (чётенькое
+   * название для одноразовых) ключей
    */
   public static byte[] computeSharedSecret(PrivateKey ourPrivate, PublicKey peerPublic)
       throws IOException {
@@ -80,9 +80,7 @@ public final class KeyAgreementService {
     }
   }
 
-  /**
-   * Считает transcript-хеш хендшейка: {@code SHA-256(clientEphPub || serverEphPub)}
-   */
+  /** Считает transcript-хеш хендшейка: {@code SHA-256(clientEphPub || serverEphPub)} */
   public static byte[] transcriptHash(byte[] clientEphPub, byte[] serverEphPub) throws IOException {
     try {
       MessageDigest digest = MessageDigest.getInstance(TRANSCRIPT_HASH);
