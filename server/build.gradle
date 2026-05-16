@@ -1,0 +1,31 @@
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':common')
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'ch.qos.logback:logback-classic:1.5.25'
+    implementation 'ch.qos.logback:logback-core:1.5.25'
+}
+
+application {
+    mainClass = 'dev.mikhalexandr.server.Server'
+}
+
+tasks.named('run') {
+    dependsOn check
+}
+
+tasks.register('jarWithDeps', Jar) {
+    archiveClassifier = 'jar-with-dependencies'
+    manifest { attributes 'Main-Class': application.mainClass }
+    from sourceSets.main.output
+    dependsOn configurations.runtimeClasspath
+    from { configurations.runtimeClasspath.findAll { it.name.endsWith('jar') }.collect { zipTree(it) } }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named('jarWithDeps') {
+    dependsOn check
+}

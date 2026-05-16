@@ -2,46 +2,47 @@ version: '3'
 
 vars:
   DATA_FILE:
-    sh: ls data/data.json
+    data/data.json
   SERVER_JAR:
-    sh: ls server/target/server-1.0.0-jar-with-dependencies.jar | head -n 1
+    server/build/libs/server-*-jar-with-dependencies.jar
   CLIENT_JAR:
-    sh: ls client/target/client-1.0.0-jar-with-dependencies.jar | head -n 1
+    client/build/libs/client-*-jar-with-dependencies.jar
 
 tasks:
-
   build:
-    desc: Build all modules with Maven
+    desc: Build all modules with Gradle
     cmds:
-      - mvn clean install
+      - ./gradlew build jarWithDeps
+
+  rebuild:
+    desc: Clean and rebuild all modules with Gradle
+    cmds:
+      - rm -rf .gradle/configuration-cache
+      - ./gradlew --no-configuration-cache clean build jarWithDeps
 
   checkstyle:
-    desc: Check project code style
+    desc: Check code style and rules
     cmds:
-      - mvn checkstyle:check
+      - ./gradlew check
+
+  format:
+    desc: Autoformat Java code
+    cmds:
+      - ./gradlew spotlessApply
 
   javadoc:
     desc: Build JavaDoc
     cmds:
-      - mvn -DskipTests javadoc:aggregate
+      - ./gradlew javadoc
 
   run:server:
-    desc: Run server jar
-    deps: [build]
+    desc: Build and run server
     cmds:
+      - ./gradlew :server:jarWithDeps
       - java -jar {{.SERVER_JAR}} {{.DATA_FILE}}
-      # java -jar server/target/server-1.0.0-jar-with-dependencies.jar data/data.json
 
   run:client:
-    desc: Run client jar
-    deps: [build]
+    desc: Build and run client
     cmds:
-      - java -jar {{.CLIENT_JAR}} {{.DATA_FILE}}
-      # java -jar client/target/client-1.0.0-jar-with-dependencies.jar data/data.json
-
-  run:all:
-    desc: Run server and client
-    deps: [build]
-    cmds:
-      - task: run:server
-      - task: run:client
+      - ./gradlew :client:jarWithDeps
+      - java -jar {{.CLIENT_JAR}}

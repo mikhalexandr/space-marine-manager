@@ -1,0 +1,44 @@
+plugins {
+    id 'java'
+    id 'checkstyle'
+    id 'com.diffplug.spotless' version '6.25.0' apply false
+}
+
+allprojects {
+    group = 'dev.mikhalexandr'
+    version = '1.0.0'
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'checkstyle'
+    apply plugin: 'com.diffplug.spotless'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    checkstyle {
+        toolVersion = '8.37'
+        configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+        ignoreFailures = false
+        showViolations = true
+    }
+
+    spotless {
+        java {
+            googleJavaFormat('1.22.0')
+            removeUnusedImports()
+        }
+    }
+
+    // check будет запускать: spotlessApply -> checkstyle (checkstyleMain/checkstyleTest)
+    tasks.named('check') {
+        dependsOn 'spotlessApply'
+    }
+}

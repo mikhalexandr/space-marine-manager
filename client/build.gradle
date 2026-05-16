@@ -1,0 +1,28 @@
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':common')
+}
+
+application {
+    mainClass = 'dev.mikhalexandr.client.Client'
+}
+
+tasks.named('run') {
+    dependsOn check
+}
+
+tasks.register('jarWithDeps', Jar) {
+    archiveClassifier = 'jar-with-dependencies'
+    manifest { attributes 'Main-Class': application.mainClass }
+    from sourceSets.main.output
+    dependsOn configurations.runtimeClasspath
+    from { configurations.runtimeClasspath.findAll { it.name.endsWith('jar') }.collect { zipTree(it) } }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named('jarWithDeps') {
+    dependsOn check
+}
