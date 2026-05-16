@@ -1,0 +1,28 @@
+[
+  {
+    "id": 1,
+    "name": "qwe",
+    "coordinates": {
+      "x": 1.0,
+      "y": "Привет"
+    },
+    "creationDate": "09:39:13 28.02.2026",
+    "health": 3.0,
+    "height": 4,
+    "category": "APOTHECARY",
+    "meleeWeapon": "MANREAPER"
+  },
+  {
+    "id": 2,
+    "name": "qw",
+    "coordinates": {
+      "x": 3.0,
+      "y": 4
+    },
+    "creationDate": "14:29:14 28.02.2026",
+    "health": 5.0,
+    "height": 2,
+    "category": "ASSAULT",
+    "meleeWeapon": "CHAIN_AXE"
+  }
+]

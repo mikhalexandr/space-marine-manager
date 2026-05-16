@@ -1,0 +1,14 @@
+/target/
+/client/target/
+/common/target/
+/server/target/
+*.iml
+.idea
+*.jar
+logs
+
+logs/
+server/logs/
+*.log
+*.lck
+target/

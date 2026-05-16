@@ -1,0 +1,47 @@
+version: '3'
+
+vars:
+  DATA_FILE:
+    sh: ls data/data.json
+  SERVER_JAR:
+    sh: ls server/target/server-1.0.0-jar-with-dependencies.jar | head -n 1
+  CLIENT_JAR:
+    sh: ls client/target/client-1.0.0-jar-with-dependencies.jar | head -n 1
+
+tasks:
+
+  build:
+    desc: Build all modules with Maven
+    cmds:
+      - mvn clean install
+
+  checkstyle:
+    desc: Check project code style
+    cmds:
+      - mvn checkstyle:check
+
+  javadoc:
+    desc: Build JavaDoc
+    cmds:
+      - mvn -DskipTests javadoc:aggregate
+
+  run:server:
+    desc: Run server jar
+    deps: [build]
+    cmds:
+      - java -jar {{.SERVER_JAR}} {{.DATA_FILE}}
+      # java -jar server/target/server-1.0.0-jar-with-dependencies.jar data/data.json
+
+  run:client:
+    desc: Run client jar
+    deps: [build]
+    cmds:
+      - java -jar {{.CLIENT_JAR}} {{.DATA_FILE}}
+      # java -jar client/target/client-1.0.0-jar-with-dependencies.jar data/data.json
+
+  run:all:
+    desc: Run server and client
+    deps: [build]
+    cmds:
+      - task: run:server
+      - task: run:client
