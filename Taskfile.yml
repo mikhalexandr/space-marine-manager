@@ -22,6 +22,7 @@ tasks:
     cmds:
       - rm -rf .gradle/configuration-cache
       - ./gradlew --no-configuration-cache clean build jarWithDeps
+      # - ./gradlew --no-configuration-cache clean build jarWithDeps -x checkstyleMain -x checkstyleTest -x spotlessCheck
 
   checkstyle:
     desc: Check code style and rules
@@ -47,12 +48,14 @@ tasks:
     cmds:
       - ./gradlew :server:jarWithDeps
       - java -jar {{.SERVER_JAR}} {{.DATA_FILE}} {{.CLI_ARGS}}
+      # - java -jar server/build/libs/server-*-jar-with-dependencies.jar data/data.json
 
   run:client:
     desc: Build and run client
     cmds:
       - ./gradlew :client:jarWithDeps
       - java -jar {{.CLIENT_JAR}} {{.CLI_ARGS}}
+      # - java -jar client/build/libs/client-*-jar-with-dependencies.jar
 
   tunnel:helios:
     desc: Open SSH tunnel to Helios
