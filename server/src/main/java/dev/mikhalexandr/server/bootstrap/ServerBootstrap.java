@@ -9,20 +9,23 @@ import dev.mikhalexandr.server.managers.proxy.LoggingCommandExecutorProxy;
 import dev.mikhalexandr.server.managers.proxy.ValidatingCommandExecutorProxy;
 import dev.mikhalexandr.server.network.TcpServer;
 import dev.mikhalexandr.server.security.ServerIdentity;
+import dev.mikhalexandr.server.security.VaultPkiClient;
 import java.io.IOException;
-import java.nio.file.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Собирает зависимости, загружает коллекцию и запускает основной цикл команд. */
 public class ServerBootstrap {
   private static final Logger LOGGER = LoggerFactory.getLogger(ServerBootstrap.class);
-  private static final String ENV_KEYSTORE_PATH = "KEYSTORE_PATH";
-  private static final String ENV_KEYSTORE_PASSWORD = "KEYSTORE_PASSWORD";
-  private static final String ENV_KEYSTORE_ALIAS = "KEYSTORE_ALIAS";
-  private static final String DEFAULT_KEYSTORE_PATH = "certs/server.p12";
-  private static final String DEFAULT_KEYSTORE_PASSWORD = "chuiz";
-  private static final String DEFAULT_KEYSTORE_ALIAS = "server";
+
+  private static final String ENV_VAULT_URL = "VAULT_URL";
+  private static final String ENV_VAULT_TOKEN = "VAULT_TOKEN";
+  private static final String ENV_VAULT_ROLE_ID = "VAULT_ROLE_ID";
+  private static final String ENV_VAULT_SECRET_ID = "VAULT_SECRET_ID";
+  private static final String ENV_VAULT_PKI_ROLE = "VAULT_PKI_ROLE";
+  private static final String ENV_VAULT_COMMON_NAME = "VAULT_COMMON_NAME";
+  private static final String DEFAULT_VAULT_PKI_ROLE = "server-role";
+  private static final String DEFAULT_VAULT_COMMON_NAME = "localhost";
 
   private final CommandRegistryInitializer commandRegistryInitializer =
       new CommandRegistryInitializer();
@@ -60,16 +63,45 @@ public class ServerBootstrap {
     tcpServer.run();
   }
 
+  /**
+   * Идёт во Vault и провижионит серт через CSR. Vault - единственный источник серверной
+   * идентичности; никаких файлов на диске.
+   */
   private ServerIdentity loadServerIdentity() {
-    String keystorePath = Env.orDefault(ENV_KEYSTORE_PATH, DEFAULT_KEYSTORE_PATH);
-    String keystorePassword = Env.orDefault(ENV_KEYSTORE_PASSWORD, DEFAULT_KEYSTORE_PASSWORD);
-    String keystoreAlias = Env.orDefault(ENV_KEYSTORE_ALIAS, DEFAULT_KEYSTORE_ALIAS);
+    String vaultUrl = Env.orDefault(ENV_VAULT_URL, null);
+    if (vaultUrl == null) {
+      throw new IllegalStateException(
+          "VAULT_URL не задан");
+    }
+    String role = Env.orDefault(ENV_VAULT_PKI_ROLE, DEFAULT_VAULT_PKI_ROLE);
+    String commonName = Env.orDefault(ENV_VAULT_COMMON_NAME, DEFAULT_VAULT_COMMON_NAME);
+    String roleId = Env.orDefault(ENV_VAULT_ROLE_ID, null);
+    String secretId = Env.orDefault(ENV_VAULT_SECRET_ID, null);
+    String token = Env.orDefault(ENV_VAULT_TOKEN, null);
+
     try {
-      return ServerIdentity.loadFromPkcs12(
-          Path.of(keystorePath), keystorePassword.toCharArray(), keystoreAlias);
+      VaultPkiClient client = chooseAuth(vaultUrl, role, roleId, secretId, token);
+      LOGGER.info(
+          "Источник серверной личности: Vault {} (pki_role={}, CN={})",
+          vaultUrl, role, commonName);
+      return client.provisionIdentity(commonName);
     } catch (IOException e) {
       throw new IllegalStateException(
-          "Не удалось загрузить " + keystorePath + " — запусти `task certs:gen`", e);
+          "Не удалось получить серт от Vault (" + vaultUrl + "): " + e.getMessage(), e);
     }
+  }
+
+  private static VaultPkiClient chooseAuth(
+      String url, String pkiRole, String roleId, String secretId, String token)
+      throws IOException {
+    if (roleId != null && secretId != null) {
+      LOGGER.info("Vault auth: AppRole (role_id={})", roleId);
+      return VaultPkiClient.withAppRole(url, roleId, secretId, pkiRole);
+    }
+    if (token != null) {
+      return VaultPkiClient.withToken(url, token, pkiRole);
+    }
+    throw new IllegalStateException(
+        "VAULT_URL задан, но не переданы ни VAULT_ROLE_ID+VAULT_SECRET_ID, ни VAULT_TOKEN");
   }
 }

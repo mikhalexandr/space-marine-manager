@@ -39,9 +39,32 @@ tasks:
     cmds:
       - ./gradlew javadoc
 
-  certs:gen:
+  vault:up:
+    desc: Start Vault container
     cmds:
-      - ./scripts/gen-certs.sh
+      - docker compose up -d vault
+      - sleep 2
+
+  vault:init:
+    desc: Init Vault, unseal, configure PKI + AppRole + policy
+    cmds:
+      - ./vault/vault-init.sh
+
+  vault:unseal:
+    desc: Unseal Vault after container restart
+    cmds:
+      - ./vault/vault-unseal.sh
+
+  vault:down:
+    desc: Stop the Vault container
+    cmds:
+      - docker compose down
+
+  vault:nuke:
+    desc: Stop Vault and wipe all its data
+    cmds:
+      - docker compose down
+      - rm -rf vault/data .vault-state.json .vault-approle.env
 
   run:server:
     desc: Build and run server

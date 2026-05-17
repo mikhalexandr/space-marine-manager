@@ -19,7 +19,7 @@ public final class ClientApplication {
   private static final long CONNECT_TIMEOUT_MILLIS = 2000;
   private static final long REQUEST_TIMEOUT_MILLIS = 5000;
   private static final String ENV_CA_CERT_PATH = "CA_CERT_PATH";
-  private static final String DEFAULT_CA_CERT_PATH = "certs/ca.crt";
+  private static final String DEFAULT_CA_CERT_PATH = "client/certs/ca.crt";
 
   /** Запускает клиент с переданными аргументами. */
   public void start(String[] args) {

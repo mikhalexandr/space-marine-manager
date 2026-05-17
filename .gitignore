@@ -33,11 +33,12 @@ build/
 # Local environment
 .env
 
-# Keys and certificates
-certs/
-*.key
+# Trust anchor клиента (выгружается vault-init.sh из Vault)
+client/certs/
 *.crt
-*.csr
-*.srl
-*.p12
 *.pem
+
+# Vault - local state и AppRole credentials, никогда не коммитить
+vault/data/
+.vault-state.json
+.vault-approle.env

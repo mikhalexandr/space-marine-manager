@@ -1,0 +1,23 @@
+services:
+  vault:
+    image: hashicorp/vault:1.18
+    container_name: smm-vault
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_ADDR: http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - ./vault/config:/vault/config:ro
+      - ./vault/data:/vault/data
+    command: server -config=/vault/config/vault.hcl
+    healthcheck:
+      # 501 = not initialized, 503 = sealed - оба означают, что HTTP отвечает.
+      # 200 = unsealed и работает. Любой из них - значит контейнер жив.
+      test: ["CMD-SHELL",
+             "wget -q -O /dev/null -S http://127.0.0.1:8200/v1/sys/health 2>&1 | grep 
+             -qE 'HTTP/1\\.[01] (200|429|472|473|501|503)' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

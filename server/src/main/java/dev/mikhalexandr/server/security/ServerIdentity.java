@@ -1,16 +1,13 @@
 package dev.mikhalexandr.server.security;
 
-import dev.mikhalexandr.common.security.cert.CertificateUtils;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 
 /**
  * Криптографическая личность сервера: приватный ключ + сертификат, подписанный CA
  *
- * <p>Загружается один раз при старте из PKCS12-keystore
+ * <p>Создаётся при старте сервера через {@link VaultPkiClient}: приватный ключ генерится локально
+ * и существует только в памяти процесса, сертификат получается от Vault через CSR-подпись
  */
 public final class ServerIdentity {
   private final PrivateKey privateKey;
@@ -22,19 +19,13 @@ public final class ServerIdentity {
   }
 
   /**
-   * Загружает идентичность сервера из PKCS12
+   * Создаёт идентичность из готовой пары приватный ключ + сертификат
    *
-   * @param p12Path путь к {@code server.p12}
-   * @param password пароль keystore
-   * @param alias имя записи в keystore
-   * @return загруженная идентичность
+   * @param privateKey приватный ключ сервера (в памяти, не на диске)
+   * @param certificate сертификат, подписанный CA (приходит из Vault)
    */
-  public static ServerIdentity loadFromPkcs12(Path p12Path, char[] password, String alias)
-      throws IOException {
-    KeyStore keyStore = CertificateUtils.loadPkcs12(p12Path, password);
-    PrivateKey key = CertificateUtils.extractPrivateKey(keyStore, alias, password);
-    X509Certificate cert = CertificateUtils.extractCertificate(keyStore, alias);
-    return new ServerIdentity(key, cert);
+  public static ServerIdentity of(PrivateKey privateKey, X509Certificate certificate) {
+    return new ServerIdentity(privateKey, certificate);
   }
 
   public PrivateKey privateKey() {
