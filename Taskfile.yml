@@ -58,13 +58,40 @@ tasks:
   vault:down:
     desc: Stop the Vault container
     cmds:
-      - docker compose down
+      - docker compose stop vault
+      - docker compose rm -f vault
 
   vault:nuke:
     desc: Stop Vault and wipe all its data
     cmds:
-      - docker compose down
+      - docker compose stop vault
+      - docker compose rm -f vault
       - rm -rf vault/data .vault-state.json .vault-approle.env
+
+  obs:up:
+    desc: Start observability stack (Loki + Promtail + Grafana)
+    cmds:
+      - docker compose up -d loki promtail grafana
+      - sleep 3
+      - echo "Grafana -> http://localhost:${GRAFANA_PORT:-3000}"
+
+  obs:down:
+    desc: Stop observability containers
+    cmds:
+      - docker compose stop grafana promtail loki
+      - docker compose rm -f grafana promtail loki
+
+  obs:nuke:
+    desc: Stop observability and wipe all logs/data
+    cmds:
+      - docker compose stop grafana promtail loki
+      - docker compose rm -f grafana promtail loki
+      - rm -rf observability/data
+
+  infra:down:
+    desc: Stop everything (vault + observability)
+    cmds:
+      - docker compose down
 
   run:server:
     desc: Build and run server

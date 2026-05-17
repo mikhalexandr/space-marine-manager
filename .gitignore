@@ -42,3 +42,6 @@ client/certs/
 vault/data/
 .vault-state.json
 .vault-approle.env
+
+# Observability - persistent data Loki/Promtail/Grafana
+observability/data/

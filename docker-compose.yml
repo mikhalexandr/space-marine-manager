@@ -16,8 +16,53 @@ services:
       # 501 = not initialized, 503 = sealed - оба означают, что HTTP отвечает.
       # 200 = unsealed и работает. Любой из них - значит контейнер жив.
       test: ["CMD-SHELL",
-             "wget -q -O /dev/null -S http://127.0.0.1:8200/v1/sys/health 2>&1 | grep 
+             "wget -q -O /dev/null -S http://127.0.0.1:8200/v1/sys/health 2>&1 | grep
              -qE 'HTTP/1\\.[01] (200|429|472|473|501|503)' || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 10
+
+  loki:
+    image: grafana/loki:3.2.1
+    container_name: smm-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./observability/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - ./observability/data/loki:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3100/ready | grep -q 'ready'"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  promtail:
+    image: grafana/promtail:3.2.1
+    container_name: smm-promtail
+    volumes:
+      - ./logs:/var/log/smm:ro
+      - ./observability/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - ./observability/data/promtail:/tmp
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    depends_on:
+      loki:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: smm-grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_FEATURE_TOGGLES_ENABLE: "logsExploreTableVisualisation"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./observability/data/grafana:/var/lib/grafana
+    depends_on:
+      loki:
+        condition: service_healthy
