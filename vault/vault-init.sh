@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-VAULT_ADDR="${VAULT_ADDR:-http://127.0.0.1:8200}"
+VAULT_ADDR="${VAULT_ADDR:-http://127.0.0.1:18200}"
 CA_CN="${CA_CN:-my-ca}"
 CA_TTL="${CA_TTL:-87600h}"
 ROLE_NAME="${ROLE_NAME:-server-role}"

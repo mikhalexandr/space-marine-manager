@@ -45,7 +45,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{app=\"server\", level=~\"$level\"}",
+          "expr": "{app=\"server\"}",
           "datasource": {"type": "loki", "uid": "loki"}
         }
       ],
@@ -67,7 +67,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{app=\"client\", level=~\"$level\"}",
+          "expr": "{app=\"client\"}",
           "datasource": {"type": "loki", "uid": "loki"}
         }
       ],
@@ -89,7 +89,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (level) (rate({app=\"server\"} [1m]))",
+          "expr": "sum by (level) (rate({app=\"server\"} | regexp \"^\\\\d{4}-\\\\d{2}-\\\\d{2} \\\\d{2}:\\\\d{2}:\\\\d{2}\\\\.\\\\d{3} (?P<level>\\\\w+)\\\\s+\\\\[\" [1m]))",
           "datasource": {"type": "loki", "uid": "loki"},
           "legendFormat": "{{level}}"
         }
@@ -109,7 +109,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"smm\", level=~\"ERROR|WARN\"}",
+          "expr": "{job=\"smm\"} | regexp \"^\\\\d{4}-\\\\d{2}-\\\\d{2} \\\\d{2}:\\\\d{2}:\\\\d{2}\\\\.\\\\d{3} (?P<level>\\\\w+)\\\\s+\\\\[(?P<thread>[^\\\\]]+)\\\\] (?P<logger>\\\\S+) - (?P<msg>.*)$\" | level=~\"ERROR|WARN\"",
           "datasource": {"type": "loki", "uid": "loki"}
         }
       ],

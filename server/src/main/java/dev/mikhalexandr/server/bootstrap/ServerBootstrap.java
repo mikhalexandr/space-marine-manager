@@ -70,8 +70,7 @@ public class ServerBootstrap {
   private ServerIdentity loadServerIdentity() {
     String vaultUrl = Env.orDefault(ENV_VAULT_URL, null);
     if (vaultUrl == null) {
-      throw new IllegalStateException(
-          "VAULT_URL не задан");
+      throw new IllegalStateException("VAULT_URL не задан");
     }
     String role = Env.orDefault(ENV_VAULT_PKI_ROLE, DEFAULT_VAULT_PKI_ROLE);
     String commonName = Env.orDefault(ENV_VAULT_COMMON_NAME, DEFAULT_VAULT_COMMON_NAME);
@@ -82,8 +81,7 @@ public class ServerBootstrap {
     try {
       VaultPkiClient client = chooseAuth(vaultUrl, role, roleId, secretId, token);
       LOGGER.info(
-          "Источник серверной личности: Vault {} (pki_role={}, CN={})",
-          vaultUrl, role, commonName);
+          "Источник серверной личности: Vault {} (pki_role={}, CN={})", vaultUrl, role, commonName);
       return client.provisionIdentity(commonName);
     } catch (IOException e) {
       throw new IllegalStateException(
@@ -92,8 +90,7 @@ public class ServerBootstrap {
   }
 
   private static VaultPkiClient chooseAuth(
-      String url, String pkiRole, String roleId, String secretId, String token)
-      throws IOException {
+      String url, String pkiRole, String roleId, String secretId, String token) throws IOException {
     if (roleId != null && secretId != null) {
       LOGGER.info("Vault auth: AppRole (role_id={})", roleId);
       return VaultPkiClient.withAppRole(url, roleId, secretId, pkiRole);

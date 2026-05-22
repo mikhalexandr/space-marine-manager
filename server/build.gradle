@@ -24,7 +24,14 @@ tasks.register('jarWithDeps', Jar) {
     manifest { attributes 'Main-Class': application.mainClass }
     from sourceSets.main.output
     dependsOn configurations.runtimeClasspath
-    from { configurations.runtimeClasspath.findAll { it.name.endsWith('jar') }.collect { zipTree(it) } }
+    from {
+        configurations.runtimeClasspath.findAll { it.name.endsWith('jar') }.collect { zipTree(it) }
+    }
+    eachFile { details ->
+        if (details.path.startsWith('META-INF/') && details.name ==~ /.*\.(SF|RSA|DSA|EC)/) {
+            details.exclude()
+        }
+    }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 

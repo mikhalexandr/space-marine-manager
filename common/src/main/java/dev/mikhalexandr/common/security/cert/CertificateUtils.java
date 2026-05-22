@@ -18,6 +18,7 @@ public final class CertificateUtils {
   private CertificateUtils() {
     throw new UnsupportedOperationException("Это утилитарный класс, его нельзя инстанцировать");
   }
+
   /**
    * Читает X.509-сертификат из PEM- или DER-файла
    *
@@ -32,6 +33,7 @@ public final class CertificateUtils {
       throw new IOException("Не удалось распарсить X.509-сертификат: " + pemPath, e);
     }
   }
+
   /**
    * Кодирует сертификат в DER-байты для передачи по сети
    *
@@ -45,6 +47,7 @@ public final class CertificateUtils {
       throw new IOException("Не удалось закодировать сертификат в DER", e);
     }
   }
+
   /**
    * Декодирует X.509-сертификат из DER-байтов
    *

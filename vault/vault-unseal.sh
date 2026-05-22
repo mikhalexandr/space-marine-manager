@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-VAULT_ADDR="${VAULT_ADDR:-http://127.0.0.1:8200}"
+VAULT_ADDR="${VAULT_ADDR:-http://127.0.0.1:18200}"
 STATE_FILE="${STATE_FILE:-.vault-state.json}"
 
 if [ ! -f "$STATE_FILE" ]; then

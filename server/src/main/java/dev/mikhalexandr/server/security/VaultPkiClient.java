@@ -44,6 +44,7 @@ import org.slf4j.LoggerFactory;
  * токеном для dev-режима.
  */
 public final class VaultPkiClient {
+  public static final int CTO = 100;
   private static final Logger LOGGER = LoggerFactory.getLogger(VaultPkiClient.class);
   private static final String SIGN_ALGORITHM = "SHA256withRSA";
   private static final String KEY_ALGORITHM = "RSA";
@@ -69,8 +70,8 @@ public final class VaultPkiClient {
   }
 
   /**
-   * Создаёт клиент, который сам логинится в Vault через AppRole и получает узкий токен с
-   * политикой server-policy
+   * Создаёт клиент, который сам логинится в Vault через AppRole и получает узкий токен с политикой
+   * server-policy
    */
   public static VaultPkiClient withAppRole(
       String vaultUrl, String roleId, String secretId, String pkiRole) throws IOException {
@@ -96,12 +97,9 @@ public final class VaultPkiClient {
       HttpResponse<String> response =
           HttpClient.newHttpClient()
               .send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-      if (response.statusCode() / 100 != 2) {
+      if (response.statusCode() / CTO != 2) {
         throw new IOException(
-            "Vault AppRole login упал: HTTP "
-                + response.statusCode()
-                + " body="
-                + response.body());
+            "Vault AppRole login упал: HTTP " + response.statusCode() + " body=" + response.body());
       }
       JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
       JsonObject auth = json.getAsJsonObject("auth");
@@ -122,14 +120,19 @@ public final class VaultPkiClient {
    * @return ServerIdentity с приватным ключом и подписанным сертификатом
    */
   public ServerIdentity provisionIdentity(String commonName) throws IOException {
-    LOGGER.info("Vault PKI: запрашиваю серт для CN={} через {}/v1/pki/sign/{}",
-        commonName, vaultUrl, pkiRole);
+    LOGGER.info(
+        "Vault PKI: запрашиваю серт для CN={} через {}/v1/pki/sign/{}",
+        commonName,
+        vaultUrl,
+        pkiRole);
     KeyPair keyPair = generateKeyPair();
     String csrPem = buildCsrPem(keyPair, commonName);
     String certPem = signCsrViaVault(csrPem, commonName);
     X509Certificate cert = parseCertificate(certPem);
-    LOGGER.info("Vault PKI: получен серт subject={}, issuer={}",
-        cert.getSubjectX500Principal(), cert.getIssuerX500Principal());
+    LOGGER.info(
+        "Vault PKI: получен серт subject={}, issuer={}",
+        cert.getSubjectX500Principal(),
+        cert.getIssuerX500Principal());
     return ServerIdentity.of(keyPair.getPrivate(), cert);
   }
 
@@ -175,7 +178,7 @@ public final class VaultPkiClient {
             .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
             .build();
     HttpResponse<String> response = sendRequest(request);
-    if (response.statusCode() / 100 != 2) {
+    if (response.statusCode() / CTO != 2) {
       throw new IOException(
           "Vault PKI sign упал: HTTP " + response.statusCode() + " body=" + response.body());
     }
@@ -197,8 +200,7 @@ public final class VaultPkiClient {
   }
 
   private static X509Certificate parseCertificate(String pem) throws IOException {
-    return CertificateUtils.decodeCertificate(
-        pemToDer(pem));
+    return CertificateUtils.decodeCertificate(pemToDer(pem));
   }
 
   private static byte[] pemToDer(String pem) throws IOException {
@@ -207,7 +209,8 @@ public final class VaultPkiClient {
     if (start < 0 || end < 0 || end <= start) {
       throw new IOException("Не найдены PEM-границы в ответе Vault");
     }
-    String base64 = pem.substring(start + "-----BEGIN CERTIFICATE-----".length(), end).replaceAll("\\s+", "");
+    String base64 =
+        pem.substring(start + "-----BEGIN CERTIFICATE-----".length(), end).replaceAll("\\s+", "");
     return Base64.getDecoder().decode(base64);
   }
 
