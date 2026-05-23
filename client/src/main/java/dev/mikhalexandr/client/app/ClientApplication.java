@@ -19,7 +19,7 @@ public final class ClientApplication {
   private static final int MAX_PORT = 65535;
   private static final int MAX_RETRY_ATTEMPTS = 3;
   private static final long CONNECT_TIMEOUT_MILLIS = 2000;
-  private static final long REQUEST_TIMEOUT_MILLIS = 100000;
+  private static final long REQUEST_TIMEOUT_MILLIS = 10000;
   private static final String ENV_CA_CERT_PATH = "CA_CERT_PATH";
   private static final String DEFAULT_CA_CERT_PATH = "client/certs/ca.crt";
 
