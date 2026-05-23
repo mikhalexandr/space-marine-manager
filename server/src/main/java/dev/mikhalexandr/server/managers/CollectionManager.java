@@ -95,7 +95,7 @@ public class CollectionManager {
   public void removeByOwner(String owner) {
     lock.writeLock().lock();
     try {
-        collection.removeIf(marine -> owner.equals(marine.getOwner()));
+      collection.removeIf(marine -> owner.equals(marine.getOwner()));
     } finally {
       lock.writeLock().unlock();
     }

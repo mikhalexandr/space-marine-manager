@@ -2,9 +2,7 @@ package dev.mikhalexandr.server.network;
 
 import java.util.concurrent.ForkJoinPool;
 
-/**
- * Фабрика пулов {@link ForkJoinPool} для многопоточной обработки и отправки ответов
- */
+/** Фабрика пулов {@link ForkJoinPool} для многопоточной обработки и отправки ответов */
 final class WorkerPools {
   private static final int MIN_PARALLELISM = 2;
 

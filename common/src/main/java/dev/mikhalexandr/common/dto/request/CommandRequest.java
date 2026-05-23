@@ -10,7 +10,7 @@ import java.io.Serializable;
 public final class CommandRequest implements Serializable {
   @Serial private static final long serialVersionUID = 2L;
 
-    private final CommandType commandType;
+  private final CommandType commandType;
   private final CommandPayload payload;
   private UserCredentials credentials;
 

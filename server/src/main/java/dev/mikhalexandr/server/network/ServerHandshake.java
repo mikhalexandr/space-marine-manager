@@ -18,7 +18,6 @@ import java.io.OutputStream;
 import java.security.KeyPair;
 import java.security.PublicKey;
 
-
 final class ServerHandshake {
   private ServerHandshake() {
     throw new UnsupportedOperationException("Это утилитарный класс, его нельзя инстанцировать");

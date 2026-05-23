@@ -17,9 +17,7 @@ import java.util.concurrent.ForkJoinPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Поток чтения запросов одного клиента
- */
+/** Поток чтения запросов одного клиента */
 final class ClientReader implements Runnable {
   private static final Logger LOGGER = LoggerFactory.getLogger(ClientReader.class);
 

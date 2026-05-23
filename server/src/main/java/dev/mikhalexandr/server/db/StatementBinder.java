@@ -4,7 +4,6 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Types;
 
-
 final class StatementBinder {
   private final PreparedStatement statement;
   private int index;

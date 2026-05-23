@@ -11,9 +11,7 @@ import java.util.concurrent.BlockingQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Доступа к PostgreSQL с простым пулом соединений
- */
+/** Доступа к PostgreSQL с простым пулом соединений */
 public final class Database implements AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(Database.class);
   private static final int DEFAULT_POOL_SIZE = 8;
@@ -23,7 +21,7 @@ public final class Database implements AutoCloseable {
 
   private final DatabaseConfig config;
   private final BlockingQueue<Connection> idle;
-    private volatile boolean closed;
+  private volatile boolean closed;
 
   /**
    * Открывает пул соединений
@@ -33,7 +31,7 @@ public final class Database implements AutoCloseable {
   public Database(DatabaseConfig config) {
     this.config = config;
     loadDriver();
-      int poolSize = resolvePoolSize();
+    int poolSize = resolvePoolSize();
     this.idle = new ArrayBlockingQueue<>(poolSize);
     for (int i = 0; i < poolSize; i++) {
       idle.add(openConnection());

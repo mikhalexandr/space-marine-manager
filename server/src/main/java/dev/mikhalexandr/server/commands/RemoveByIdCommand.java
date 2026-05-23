@@ -40,8 +40,8 @@ public class RemoveByIdCommand extends Command {
     if (existing == null) {
       return CommandResponse.success(String.format("Элемент с id=%d не найден", id));
     }
-      assert user != null;
-      if (!user.equals(existing.getOwner())) {
+    assert user != null;
+    if (!user.equals(existing.getOwner())) {
       throw new CommandExecutionException(
           String.format(
               "Элемент с id=%d принадлежит пользователю '%s' — удалять нельзя",

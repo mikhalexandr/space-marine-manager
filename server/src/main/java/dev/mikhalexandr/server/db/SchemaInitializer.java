@@ -4,9 +4,7 @@ import java.sql.Statement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Создаёт схему бд при старте сервера
- */
+/** Создаёт схему бд при старте сервера */
 public final class SchemaInitializer {
   private static final Logger LOGGER = LoggerFactory.getLogger(SchemaInitializer.class);
 

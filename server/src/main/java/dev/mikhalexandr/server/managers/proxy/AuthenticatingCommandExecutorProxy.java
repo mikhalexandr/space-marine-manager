@@ -6,9 +6,7 @@ import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.server.auth.AuthService;
 import dev.mikhalexandr.server.managers.CommandExecutor;
 
-/**
- * Proxy, обеспечивающий регистрацию/авторизацию
- */
+/** Proxy, обеспечивающий регистрацию/авторизацию */
 public final class AuthenticatingCommandExecutorProxy implements CommandExecutor {
   private static final String UNAUTHORIZED_MESSAGE =
       "Требуется авторизация: выполните вход или регистрацию.";

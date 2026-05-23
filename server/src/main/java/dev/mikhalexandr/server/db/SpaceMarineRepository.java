@@ -15,9 +15,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Доступ к таблице коллекции {@code space_marines}
- */
+/** Доступ к таблице коллекции {@code space_marines} */
 public final class SpaceMarineRepository {
   private static final Logger LOGGER = LoggerFactory.getLogger(SpaceMarineRepository.class);
 
@@ -42,7 +40,6 @@ public final class SpaceMarineRepository {
   private static final String SELECT_ALL_SQL = "SELECT * FROM space_marines ORDER BY id";
 
   private final Database database;
-
 
   public SpaceMarineRepository(Database database) {
     this.database = database;

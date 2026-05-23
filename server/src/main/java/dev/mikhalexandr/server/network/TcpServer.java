@@ -10,9 +10,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Многопоточный блокирующий TCP-сервер
- */
+/** Многопоточный блокирующий TCP-сервер */
 public final class TcpServer {
   private static final Logger LOGGER = LoggerFactory.getLogger(TcpServer.class);
 

@@ -2,10 +2,7 @@ package dev.mikhalexandr.server.db;
 
 import dev.mikhalexandr.common.util.Env;
 
-/**
- * Конфигурация подключения к постгре
- *
- */
+/** Конфигурация подключения к постгре */
 public final class DatabaseConfig {
   private static final String PROFILE_HELIOS = "helios";
   private static final String PROFILE_DOCKER = "docker";

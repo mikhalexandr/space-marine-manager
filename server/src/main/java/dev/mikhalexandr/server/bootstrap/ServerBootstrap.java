@@ -75,9 +75,8 @@ public class ServerBootstrap {
     tcpServer.stop();
     database.close();
   }
-  /**
-   * Идёт во Vault и крафтит серверный сертификат через CSR
-   */
+
+  /** Идёт во Vault и крафтит серверный сертификат через CSR */
   private ServerIdentity loadServerIdentity() {
     String vaultUrl = Env.orDefault(ENV_VAULT_URL, null);
     if (vaultUrl == null) {
