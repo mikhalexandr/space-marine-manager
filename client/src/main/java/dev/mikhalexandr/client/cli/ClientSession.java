@@ -35,15 +35,26 @@ public final class ClientSession {
   private final CommandRequestParser parser;
   private final InputHandler marineInputReader;
   private final TcpClient tcpClient;
+  private final Scanner scanner;
   private final Map<CommandType, CommandStrategy> commandStrategies;
   private final CommandStrategy defaultCommandStrategy;
   private final CommandStrategy unsupportedClientCommandStrategy;
 
+  /**
+   * @param parser парсер пользовательского ввода
+   * @param marineInputReader интерактивное чтение полей SpaceMarine
+   * @param tcpClient транспорт обмена с сервером
+   * @param scanner общий источник пользовательского ввода
+   */
   public ClientSession(
-      CommandRequestParser parser, InputHandler marineInputReader, TcpClient tcpClient) {
+      CommandRequestParser parser,
+      InputHandler marineInputReader,
+      TcpClient tcpClient,
+      Scanner scanner) {
     this.parser = parser;
     this.marineInputReader = marineInputReader;
     this.tcpClient = tcpClient;
+    this.scanner = scanner;
     this.defaultCommandStrategy = new ServerCommandStrategy();
     this.unsupportedClientCommandStrategy = new UnsupportedClientCommandStrategy();
     this.commandStrategies = createCommandStrategies();
@@ -51,7 +62,7 @@ public final class ClientSession {
 
   /** Запускает цикл чтения команд из консоли/скриптов. */
   public void run() {
-    try (Scanner scanner = new Scanner(System.in)) {
+    try {
       boolean running = true;
       Deque<InputContext> inputs = new ArrayDeque<>();
       inputs.push(InputContext.console(scanner));
@@ -211,10 +222,10 @@ public final class ClientSession {
   }
 
   private CommandRequest enrichPayloadForEntityCommands(
-      CommandRequest request, Scanner scanner, boolean showPrompts) {
+      CommandRequest request, Scanner inputScanner, boolean showPrompts) {
     if (request.getCommandType() == CommandType.ADD
         || request.getCommandType() == CommandType.ADD_IF_MIN) {
-      SpaceMarine marine = marineInputReader.read(scanner, showPrompts);
+      SpaceMarine marine = marineInputReader.read(inputScanner, showPrompts);
       return new CommandRequest(request.getCommandType(), new MarinePayload(marine));
     }
 
@@ -225,7 +236,7 @@ public final class ClientSession {
         return null;
       }
 
-      SpaceMarine marine = marineInputReader.read(scanner, showPrompts);
+      SpaceMarine marine = marineInputReader.read(inputScanner, showPrompts);
       return new CommandRequest(CommandType.UPDATE, new IdMarinePayload(idPayload.getId(), marine));
     }
 

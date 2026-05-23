@@ -4,48 +4,101 @@ import dev.mikhalexandr.common.models.AstartesCategory;
 import dev.mikhalexandr.common.models.SpaceMarine;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-/** Управляет коллекцией {@link SpaceMarine} и операциями над ней. */
 public class CollectionManager {
   private static final DateTimeFormatter DATE_FORMATTER =
       DateTimeFormatter.ofPattern("HH:mm:ss dd.MM.yyyy");
 
-  private LinkedList<SpaceMarine> collection = new LinkedList<>();
-  private final Date intializationDate = new Date();
-  private final AtomicInteger nextId = new AtomicInteger(1);
-
-  private int generateId() {
-    return nextId.getAndIncrement();
-  }
+  private final ReadWriteLock lock = new ReentrantReadWriteLock();
+  private final LinkedList<SpaceMarine> collection = new LinkedList<>();
+  private final Date initializationDate = new Date();
 
   /**
-   * Добавляет элемент в коллекцию с автоматически назначенными id и датой создания.
+   * Полностью заменяет коллекцию в памяти
    *
-   * @param spaceMarine добавляемый объект
+   * @param marines загруженные из бд элементы
    */
-  public void add(SpaceMarine spaceMarine) {
-    spaceMarine.setId(generateId());
-    spaceMarine.setCreationDate(new Date());
-    collection.add(spaceMarine);
+  public void loadAll(List<SpaceMarine> marines) {
+    lock.writeLock().lock();
+    try {
+      collection.clear();
+      collection.addAll(marines);
+    } finally {
+      lock.writeLock().unlock();
+    }
   }
 
   /**
-   * Заменяет элемент по id, сохраняя id и дату создания.
+   * Добавляет элемент в коллекцию в памяти. Вызывается только после успешной вставки в бд
+   *
+   * @param marine элемент с уже проставленными id и датой создания
+   */
+  public void add(SpaceMarine marine) {
+    lock.writeLock().lock();
+    try {
+      collection.add(marine);
+    } finally {
+      lock.writeLock().unlock();
+    }
+  }
+
+  /**
+   * Заменяет элемент по id, сохраняя id, дату создания и владельца
    *
    * @param id идентификатор существующего элемента
-   * @param newSpaceMarine новое значение
-   * @throws NoSuchElementException если элемент с таким id отсутствует
+   * @param newMarine новое значение
    */
-  public void update(int id, SpaceMarine newSpaceMarine) {
-    SpaceMarine old = getById(id);
-    if (old == null) {
-      throw new NoSuchElementException(String.format("SpaceMarine с id %d не найден", id));
+  public void update(int id, SpaceMarine newMarine) {
+    lock.writeLock().lock();
+    try {
+      SpaceMarine old = findById(id);
+      if (old == null) {
+        throw new NoSuchElementException(String.format("SpaceMarine с id %d не найден", id));
+      }
+      newMarine.setId(id);
+      newMarine.setCreationDate(old.getCreationDate());
+      newMarine.setOwner(old.getOwner());
+      collection.set(collection.indexOf(old), newMarine);
+    } finally {
+      lock.writeLock().unlock();
     }
-    newSpaceMarine.setId(id);
-    newSpaceMarine.setCreationDate(old.getCreationDate());
-    collection.set(collection.indexOf(old), newSpaceMarine);
+  }
+
+  /**
+   * Удаляет элемент по идентификатору
+   *
+   * @param id идентификатор элемента
+   */
+  public void removeById(int id) {
+    lock.writeLock().lock();
+    try {
+      collection.removeIf(marine -> marine.getId() == id);
+    } finally {
+      lock.writeLock().unlock();
+    }
+  }
+
+  /**
+   * Удаляет все элементы указанного владельца.
+   *
+   * @param owner логин пользователя-владельца
+   */
+  public void removeByOwner(String owner) {
+    lock.writeLock().lock();
+    try {
+        collection.removeIf(marine -> owner.equals(marine.getOwner()));
+    } finally {
+      lock.writeLock().unlock();
+    }
   }
 
   /**
@@ -53,95 +106,101 @@ public class CollectionManager {
    * @return найденный элемент или null
    */
   public SpaceMarine getById(int id) {
-    return collection.stream().filter(x -> x.getId() == id).findFirst().orElse(null);
-  }
-
-  /**
-   * Удаляет элемент по идентификатору.
-   *
-   * @param id идентификатор элемента
-   * @return true, если элемент был удален
-   */
-  public boolean removeById(int id) {
-    return collection.removeIf(x -> x.getId() == id);
-  }
-
-  /** Очищает коллекцию. */
-  public void clear() {
-    collection.clear();
+    lock.readLock().lock();
+    try {
+      return findById(id);
+    } finally {
+      lock.readLock().unlock();
+    }
   }
 
   /**
    * @return первый элемент коллекции или null, если коллекция пуста
    */
   public SpaceMarine head() {
-    return collection.peekFirst();
+    lock.readLock().lock();
+    try {
+      return collection.peekFirst();
+    } finally {
+      lock.readLock().unlock();
+    }
   }
 
   /**
-   * Добавляет элемент только если он меньше минимального в коллекции.
-   *
-   * @param spaceMarine кандидат на добавление
-   * @return true, если элемент добавлен
+   * @param candidate кандидат на добавление
+   * @return true, если коллекция пуста или кандидат меньше минимального элемента
    */
-  public boolean addIfMin(SpaceMarine spaceMarine) {
-    if (collection.isEmpty() || spaceMarine.compareTo(Collections.min(collection)) < 0) {
-      add(spaceMarine);
-      return true;
+  public boolean isLessThanMin(SpaceMarine candidate) {
+    lock.readLock().lock();
+    try {
+      return collection.isEmpty() || candidate.compareTo(Collections.min(collection)) < 0;
+    } finally {
+      lock.readLock().unlock();
     }
-    return false;
   }
 
   /**
    * @return сумма поля health по всем элементам
    */
   public float sumOfHealth() {
-    return (float) collection.stream().mapToDouble(SpaceMarine::getHealth).sum();
+    lock.readLock().lock();
+    try {
+      return (float) collection.stream().mapToDouble(SpaceMarine::getHealth).sum();
+    } finally {
+      lock.readLock().unlock();
+    }
   }
 
   /**
    * @return элемент с максимальным chapter или null, если подходящих нет
    */
   public SpaceMarine maxByChapter() {
-    return collection.stream()
-        .filter(x -> x.getChapter() != null)
-        .max(Comparator.comparing(SpaceMarine::getChapter))
-        .orElse(null);
+    lock.readLock().lock();
+    try {
+      return collection.stream()
+          .filter(marine -> marine.getChapter() != null)
+          .max(Comparator.comparing(SpaceMarine::getChapter))
+          .orElse(null);
+    } finally {
+      lock.readLock().unlock();
+    }
   }
 
   /**
-   * Подсчитывает количество элементов заданной категории.
-   *
    * @param category категория для фильтрации
    * @return число элементов этой категории
    */
   public long countByCategory(AstartesCategory category) {
-    return collection.stream().filter(x -> x.getCategory() == category).count();
+    lock.readLock().lock();
+    try {
+      return collection.stream().filter(marine -> marine.getCategory() == category).count();
+    } finally {
+      lock.readLock().unlock();
+    }
   }
 
   /**
-   * @return текущая коллекция
+   * @return копия коллекции на момент вызова
    */
-  public LinkedList<SpaceMarine> getCollection() {
-    return collection;
-  }
-
-  /**
-   * Устанавливает коллекцию и синхронизирует генератор id.
-   *
-   * @param loaded загруженная коллекция
-   */
-  public void setCollection(LinkedList<SpaceMarine> loaded) {
-    this.collection = loaded;
-    int maxId = collection.stream().mapToInt(SpaceMarine::getId).max().orElse(0);
-    nextId.set(maxId + 1);
+  public List<SpaceMarine> snapshot() {
+    lock.readLock().lock();
+    try {
+      return new ArrayList<>(collection);
+    } finally {
+      lock.readLock().unlock();
+    }
   }
 
   /**
    * @return количество элементов в коллекции
    */
   public int size() {
-    return collection.size();
+    lock.readLock().lock();
+    try {
+      return collection.size();
+    } finally {
+      lock.readLock().unlock();
+    }
   }
 
   /**
@@ -155,6 +214,10 @@ public class CollectionManager {
    * @return дата инициализации менеджера в формате HH:mm:ss dd.MM.yyyy
    */
   public String getInitializationDateFormatted() {
-    return intializationDate.toInstant().atZone(ZoneId.systemDefault()).format(DATE_FORMATTER);
+    return initializationDate.toInstant().atZone(ZoneId.systemDefault()).format(DATE_FORMATTER);
+  }
+
+  private SpaceMarine findById(int id) {
+    return collection.stream().filter(marine -> marine.getId() == id).findFirst().orElse(null);
   }
 }

@@ -3,7 +3,7 @@ package dev.mikhalexandr.server;
 import dev.mikhalexandr.common.util.Validator;
 import dev.mikhalexandr.server.bootstrap.ServerBootstrap;
 
-/** Точка входа серверного приложения. */
+/** Точка входа серверного приложения */
 public final class Server {
   private static final int DEFAULT_PORT = 5050;
   private static final int MIN_PORT = 1;
@@ -14,38 +14,30 @@ public final class Server {
   }
 
   /**
-   * Запускает однопоточный TCP-сервер.
+   * Запускает однопоточный приём подключений и многопоточную обработку запросов
    *
-   * @param args первый аргумент должен содержать путь к JSON-файлу коллекции, второй (опционально)
-   *     TCP-порт
+   * @param args порт, если надо
    */
   public static void main(String[] args) {
-    if (args.length == 0 || !Validator.isValidString(args[0])) {
-      System.err.printf(
-          "Ошибка инициализации сервиса%nФормат запуска: java -jar [SERVER_JAR] <путь к файлу> [порт]%n");
-      System.exit(1);
-    }
-
     int port;
     try {
       port = parsePort(args);
     } catch (IllegalArgumentException e) {
-      System.err.println("Ошибка инициализации сервиса\n" + e.getMessage());
+      System.err.println("Ошибка инициализации сервера: " + e.getMessage());
       System.exit(1);
       return;
     }
 
-    ServerBootstrap bootstrap = new ServerBootstrap();
-    bootstrap.run(args[0], port);
+    new ServerBootstrap().run(port);
   }
 
   private static int parsePort(String[] args) {
-    if (args.length < 2 || !Validator.isValidString(args[1])) {
+    if (args.length == 0 || !Validator.isValidString(args[0])) {
       return DEFAULT_PORT;
     }
 
     try {
-      int port = Integer.parseInt(args[1]);
+      int port = Integer.parseInt(args[0].trim());
       if (port < MIN_PORT || port > MAX_PORT) {
         throw new IllegalArgumentException(
             String.format("Порт должен быть в диапазоне %d..%d", MIN_PORT, MAX_PORT));

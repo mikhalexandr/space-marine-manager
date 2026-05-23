@@ -1,86 +1,71 @@
 package dev.mikhalexandr.server.network;
 
+import dev.mikhalexandr.common.protocol.FrameCodec;
 import dev.mikhalexandr.common.security.crypto.SessionCipher;
-import java.net.SocketAddress;
-import java.nio.ByteBuffer;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.Socket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-/** Состояние одного TCP-клиента между событиями selectorа. */
+/** Состояние одного установленного TCP-клиента после успешного хендшейка */
 final class ClientConnection {
-  private final ByteBuffer lengthBuffer = ByteBuffer.allocate(Integer.BYTES);
+  private static final Logger LOGGER = LoggerFactory.getLogger(ClientConnection.class);
+
+  private final Socket socket;
+  private final InputStream input;
+  private final OutputStream output;
+  private final SessionCipher cipher;
   private final String remoteAddress;
-  private ByteBuffer payloadBuffer;
-  private ByteBuffer responseBuffer;
-  private boolean requestInFlight;
-  private HandshakeStage handshakeStage = HandshakeStage.AWAITING_HELLO;
-  private SessionCipher sessionCipher;
+  private final Object writeLock = new Object();
 
-  ClientConnection(SocketAddress remoteAddress) {
-    this.remoteAddress = String.valueOf(remoteAddress);
+  ClientConnection(
+      Socket socket,
+      InputStream input,
+      OutputStream output,
+      SessionCipher cipher,
+      String remoteAddress) {
+    this.socket = socket;
+    this.input = input;
+    this.output = output;
+    this.cipher = cipher;
+    this.remoteAddress = remoteAddress;
   }
 
-  HandshakeStage handshakeStage() {
-    return handshakeStage;
+  InputStream input() {
+    return input;
   }
 
-  void markEstablished(SessionCipher cipher) {
-    this.sessionCipher = cipher;
-    handshakeStage = HandshakeStage.ESTABLISHED;
-  }
-
-  SessionCipher sessionCipher() {
-    return sessionCipher;
-  }
-
-  ByteBuffer lengthBuffer() {
-    return lengthBuffer;
-  }
-
-  ByteBuffer payloadBuffer() {
-    return payloadBuffer;
+  SessionCipher cipher() {
+    return cipher;
   }
 
   String remoteAddress() {
     return remoteAddress;
   }
 
-  void preparePayloadBuffer(int payloadLength) {
-    payloadBuffer = ByteBuffer.allocate(payloadLength);
+  boolean isOpen() {
+    return !socket.isClosed();
   }
 
-  byte[] takePayload() {
-    byte[] payload = payloadBuffer.array();
-    payloadBuffer = null;
-    lengthBuffer.clear();
-    return payload;
+  /**
+   * Отправка пейлода клиенту
+   *
+   * @param payload сериализованные данные ответа без префикса длины
+   * @throws IOException если запись не удалась
+   */
+  void writeFrame(byte[] payload) throws IOException {
+    synchronized (writeLock) {
+      FrameCodec.writeFrame(output, payload);
+    }
   }
 
-  void markRequestInFlight() {
-    requestInFlight = true;
-  }
-
-  boolean requestInFlight() {
-    return requestInFlight;
-  }
-
-  void completeRequest() {
-    requestInFlight = false;
-  }
-
-  void enqueueResponse(ByteBuffer responseFrame) {
-    responseBuffer = responseFrame;
-  }
-
-  ByteBuffer responseBuffer() {
-    return responseBuffer;
-  }
-
-  void clearResponseBuffer() {
-    responseBuffer = null;
-  }
-
-  /** Стадия рукопожатия одного соединения. */
-  enum HandshakeStage {
-    AWAITING_HELLO,
-    ESTABLISHED
+  void close() {
+    try {
+      socket.close();
+    } catch (IOException e) {
+      LOGGER.debug("Не удалось закрыть сокет клиента {}", remoteAddress, e);
+    }
   }
 }

@@ -1,6 +1,7 @@
 package dev.mikhalexandr.client.network;
 
 import dev.mikhalexandr.client.security.TrustAnchor;
+import dev.mikhalexandr.common.dto.auth.UserCredentials;
 import dev.mikhalexandr.common.dto.request.CommandRequest;
 import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.common.protocol.FrameCodec;
@@ -52,6 +53,7 @@ public class TcpClient implements Closeable {
   private SelectionKey channelKey;
   private X509Certificate serverCertificate;
   private SessionCipher sessionCipher;
+  private UserCredentials credentials;
 
   public TcpClient(
       String host,
@@ -75,6 +77,7 @@ public class TcpClient implements Closeable {
    * @return ответ сервера
    */
   public CommandResponse send(CommandRequest request) throws IOException {
+    attachCredentials(request);
     IOException lastException = null;
     for (int attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -105,6 +108,22 @@ public class TcpClient implements Closeable {
   @Override
   public void close() {
     closeQuietly();
+  }
+
+  /**
+   * Сохраняет учётные данные текущего пользователя. После этого они автоматически прикрепляются к
+   * каждому запросу
+   *
+   * @param credentials логин и пароль аутентифицированного пользователя
+   */
+  public void setCredentials(UserCredentials credentials) {
+    this.credentials = credentials;
+  }
+
+  private void attachCredentials(CommandRequest request) {
+    if (request.getCredentials() == null && credentials != null) {
+      request.setCredentials(credentials);
+    }
   }
 
   private void ensureConnected() throws IOException {

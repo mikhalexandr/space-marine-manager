@@ -45,3 +45,6 @@ vault/data/
 
 # Observability - persistent data Loki/Promtail/Grafana
 observability/data/
+
+# PostgreSQL - persistent data локального контейнера
+data/postgres/

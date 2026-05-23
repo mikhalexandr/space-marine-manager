@@ -1,5 +1,6 @@
 package dev.mikhalexandr.client.app;
 
+import dev.mikhalexandr.client.auth.AuthGateway;
 import dev.mikhalexandr.client.cli.ClientSession;
 import dev.mikhalexandr.client.commands.CommandRequestParser;
 import dev.mikhalexandr.client.io.InputHandler;
@@ -8,6 +9,7 @@ import dev.mikhalexandr.client.security.TrustAnchor;
 import dev.mikhalexandr.common.util.Env;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Scanner;
 
 /** Оркестратор клиентского приложения: инициализация и запуск сессии. */
 public final class ClientApplication {
@@ -34,9 +36,14 @@ public final class ClientApplication {
     }
 
     printWelcome(endpoint);
-    ClientSession session =
-        new ClientSession(new CommandRequestParser(), new InputHandler(), tcpClient);
-    session.run();
+    Scanner scanner = new Scanner(System.in);
+    if (!new AuthGateway(tcpClient, scanner).authenticate()) {
+      System.out.println("Выход из приложения -_-");
+      tcpClient.close();
+      return;
+    }
+    System.out.println("Введите команду (exit для выхода):");
+    new ClientSession(new CommandRequestParser(), new InputHandler(), tcpClient, scanner).run();
   }
 
   private static TrustAnchor loadTrustAnchor() {
@@ -88,7 +95,6 @@ public final class ClientApplication {
 
   private static void printWelcome(ClientEndpoint endpoint) {
     System.out.printf("Клиент запущен. Сервер: %s:%d%n", endpoint.host(), endpoint.port());
-    System.out.println("Введите команду (exit для выхода):");
   }
 
   private static int parsePort(String portArg) {

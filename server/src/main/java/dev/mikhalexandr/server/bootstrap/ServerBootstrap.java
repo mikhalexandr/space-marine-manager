@@ -1,10 +1,16 @@
 package dev.mikhalexandr.server.bootstrap;
 
 import dev.mikhalexandr.common.util.Env;
+import dev.mikhalexandr.server.auth.AuthService;
+import dev.mikhalexandr.server.db.Database;
+import dev.mikhalexandr.server.db.DatabaseConfig;
+import dev.mikhalexandr.server.db.SchemaInitializer;
+import dev.mikhalexandr.server.db.SpaceMarineRepository;
+import dev.mikhalexandr.server.db.UserRepository;
 import dev.mikhalexandr.server.managers.CollectionManager;
 import dev.mikhalexandr.server.managers.CommandExecutor;
 import dev.mikhalexandr.server.managers.CommandManager;
-import dev.mikhalexandr.server.managers.FileManager;
+import dev.mikhalexandr.server.managers.proxy.AuthenticatingCommandExecutorProxy;
 import dev.mikhalexandr.server.managers.proxy.LoggingCommandExecutorProxy;
 import dev.mikhalexandr.server.managers.proxy.ValidatingCommandExecutorProxy;
 import dev.mikhalexandr.server.network.TcpServer;
@@ -14,7 +20,7 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Собирает зависимости, загружает коллекцию и запускает основной цикл команд. */
+/** Собирает зависимости, поднимает БД и коллекцию и запускает все, что может */
 public class ServerBootstrap {
   private static final Logger LOGGER = LoggerFactory.getLogger(ServerBootstrap.class);
 
@@ -29,43 +35,48 @@ public class ServerBootstrap {
 
   private final CommandRegistryInitializer commandRegistryInitializer =
       new CommandRegistryInitializer();
-  private final CollectionBootstrapLoader collectionLoader = new CollectionBootstrapLoader();
 
-  /** Запускает серверное приложение. */
-  public void run(String collectionFilePath, int port) {
+  /**
+   * Запускает сервак
+   *
+   * @param port TCP-порт прослушивания
+   */
+  public void run(int port) {
     LOGGER.info("Инициализация серверных зависимостей");
-    CollectionManager collectionManager = new CollectionManager();
-    FileManager fileManager = new FileManager(collectionFilePath);
-    CommandManager commandManager = new CommandManager();
+    DatabaseConfig databaseConfig = DatabaseConfig.fromEnv();
+    LOGGER.info("Подключение к PostgreSQL: {}", databaseConfig.describe());
+    Database database = new Database(databaseConfig);
+    new SchemaInitializer(database).initialize();
 
-    LOGGER.info("Загрузка коллекции из файла: {}", collectionFilePath);
-    collectionLoader.load(collectionManager, fileManager);
-    LOGGER.info("Регистрация команд сервера");
-    commandRegistryInitializer.register(commandManager, collectionManager);
+    SpaceMarineRepository marineRepository = new SpaceMarineRepository(database);
+    CollectionManager collectionManager = new CollectionManager();
+    collectionManager.loadAll(marineRepository.findAll());
+    LOGGER.info("Коллекция загружена из БД: {} элементов", collectionManager.size());
+
+    AuthService authService = new AuthService(new UserRepository(database));
+    CommandManager commandManager = new CommandManager();
+    commandRegistryInitializer.register(commandManager, collectionManager, marineRepository);
 
     ServerIdentity identity = loadServerIdentity();
     LOGGER.info(
-        "Серверная личность загружена: subject={}, issuer={}",
-        identity.certificate().getSubjectX500Principal(),
-        identity.certificate().getIssuerX500Principal());
+        "Серверная личность загружена: subject={}",
+        identity.certificate().getSubjectX500Principal());
 
-    LOGGER.info("Переход в цикл обработки TCP-запросов");
     CommandExecutor commandExecutor =
-        new LoggingCommandExecutorProxy(new ValidatingCommandExecutorProxy(commandManager));
+        new LoggingCommandExecutorProxy(
+            new ValidatingCommandExecutorProxy(
+                new AuthenticatingCommandExecutorProxy(commandManager, authService)));
     TcpServer tcpServer = new TcpServer(port, commandExecutor, identity);
-    Runtime.getRuntime()
-        .addShutdownHook(
-            new Thread(
-                () -> {
-                  tcpServer.stop();
-                  fileManager.save(collectionManager.getCollection());
-                }));
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(tcpServer, database)));
     tcpServer.run();
   }
 
+  private static void shutdown(TcpServer tcpServer, Database database) {
+    tcpServer.stop();
+    database.close();
+  }
   /**
-   * Идёт во Vault и провижионит серт через CSR. Vault - единственный источник серверной
-   * идентичности; никаких файлов на диске.
+   * Идёт во Vault и крафтит серверный сертификат через CSR
    */
   private ServerIdentity loadServerIdentity() {
     String vaultUrl = Env.orDefault(ENV_VAULT_URL, null);

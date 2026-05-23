@@ -3,7 +3,7 @@ package dev.mikhalexandr.common.dto.request;
 import java.io.Serializable;
 import java.util.Arrays;
 
-/** Типы команд, доступных в системе. */
+/** Типы команд, доступных в системе */
 public enum CommandType implements Serializable {
   HELP("help", true),
   INFO("info", true),
@@ -20,6 +20,8 @@ public enum CommandType implements Serializable {
   MAX_BY_CHAPTER("max_by_chapter", true),
   COUNT_BY_CATEGORY("count_by_category", true),
   HISTORY("history", true),
+  REGISTER("register", false),
+  LOGIN("login", false),
   UNKNOWN("unknown", false);
 
   private final String wireName;

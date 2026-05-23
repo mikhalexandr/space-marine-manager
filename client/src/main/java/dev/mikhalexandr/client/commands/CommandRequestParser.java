@@ -41,7 +41,9 @@ public class CommandRequestParser {
               ADD,
               ADD_IF_MIN,
               EXIT,
-              EXECUTE_SCRIPT ->
+              EXECUTE_SCRIPT,
+              REGISTER,
+              LOGIN ->
           new CommandRequest(commandType, NoArgsPayload.INSTANCE);
       case REMOVE_BY_ID, UPDATE -> buildIdBasedRequest(commandType, arguments);
       case COUNT_BY_CATEGORY -> buildCategoryRequest(arguments);

@@ -9,6 +9,7 @@ dependencies {
     implementation 'ch.qos.logback:logback-core:1.5.25'
     implementation 'org.bouncycastle:bcpkix-jdk18on:1.84'
     implementation 'org.bouncycastle:bcprov-jdk18on:1.84'
+    implementation 'org.postgresql:postgresql:42.7.7'
 }
 
 application {

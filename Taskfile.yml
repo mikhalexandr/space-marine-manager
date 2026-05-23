@@ -4,8 +4,6 @@ dotenv:
   - .env
 
 vars:
-  DATA_FILE:
-    data/data.json
   SERVER_JAR:
     server/build/libs/server-*-jar-with-dependencies.jar
   CLIENT_JAR:
@@ -88,17 +86,35 @@ tasks:
       - docker compose rm -f grafana promtail loki
       - rm -rf observability/data
 
+  db:up:
+    desc: Start PostgreSQL container (профиль docker)
+    cmds:
+      - docker compose up -d postgres
+      - sleep 3
+
+  db:down:
+    desc: Stop the PostgreSQL container
+    cmds:
+      - docker compose stop postgres
+      - docker compose rm -f postgres
+
+  db:nuke:
+    desc: Stop PostgreSQL and wipe all its data
+    cmds:
+      - docker compose stop postgres
+      - docker compose rm -f postgres
+      - rm -rf data/postgres
+
   infra:down:
-    desc: Stop everything (vault + observability)
+    desc: Stop everything (postgres + vault + observability)
     cmds:
       - docker compose down
 
   run:server:
-    desc: Build and run server
+    desc: Build and run server (порт можно передать через -- 5050)
     cmds:
       - ./gradlew :server:jarWithDeps
-      - java -jar {{.SERVER_JAR}} {{.DATA_FILE}} {{.CLI_ARGS}}
-      # - java -jar server/build/libs/server-*-jar-with-dependencies.jar data/data.json
+      - java -jar {{.SERVER_JAR}} {{.CLI_ARGS}}
 
   run:client:
     desc: Build and run client

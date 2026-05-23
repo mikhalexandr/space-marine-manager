@@ -18,6 +18,7 @@ public class CommandManager implements CommandExecutor {
   private static final int HISTORY_SIZE = 5;
   private final Map<String, CommandContract> commands = new LinkedHashMap<>();
   private final List<String> history = new ArrayList<>();
+  private final Object historyLock = new Object();
 
   /**
    * Регистрирует новую команду.
@@ -68,6 +69,10 @@ public class CommandManager implements CommandExecutor {
             result =
                 CommandResponse.error(
                     String.format("Ошибка выполнения команды: %s", e.getMessage()));
+          } catch (RuntimeException e) {
+            result =
+                CommandResponse.error(
+                    String.format("Внутренняя ошибка команды: %s", e.getMessage()));
           }
         }
       }
@@ -88,23 +93,28 @@ public class CommandManager implements CommandExecutor {
   }
 
   /**
-   * Добавляет название команды в историю с ограничением по размеру.
+   * Добавляет название команды в историю
    *
    * @param name имя выполненной команды
+   * @param args строка аргументов выполненной команды
    */
   public void addToHistory(String name, String args) {
     String info = name + " " + args;
-    history.add(info);
-    if (history.size() > HISTORY_SIZE) {
-      history.remove(0);
+    synchronized (historyLock) {
+      history.add(info);
+      if (history.size() > HISTORY_SIZE) {
+        history.remove(0);
+      }
     }
   }
 
   /**
-   * @return список недавно выполненных команд
+   * @return неизменяемая копия списка недавно выполненных команд
    */
   public List<String> getHistory() {
-    return Collections.unmodifiableList(history);
+    synchronized (historyLock) {
+      return List.copyOf(history);
+    }
   }
 
   /**

@@ -12,9 +12,6 @@ import java.util.Objects;
 public class SpaceMarine implements Comparable<SpaceMarine>, Serializable {
   @Serial private static final long serialVersionUID = 1L;
 
-  private static final int MIN_X = -121;
-  private static final int MIN_Y = -184;
-
   private Integer id;
   private final String name;
   private final Coordinates coordinates;
@@ -24,6 +21,7 @@ public class SpaceMarine implements Comparable<SpaceMarine>, Serializable {
   private final AstartesCategory category;
   private final MeleeWeapon meleeWeapon;
   private final Chapter chapter;
+  private String owner;
 
   /**
    * Создает новый экземпляр SpaceMarine.
@@ -55,21 +53,6 @@ public class SpaceMarine implements Comparable<SpaceMarine>, Serializable {
     this.category = category;
     this.meleeWeapon = meleeWeapon;
     this.chapter = chapter;
-  }
-
-  /** Проверяет корректность состояния объекта. */
-  public void validate() {
-    Validator.validateId(id);
-    Validator.validateString(name, "SpaceMarine.name");
-    Validator.validateNotNull(coordinates, "SpaceMarine.coordinates");
-    Validator.validateGreaterThan(coordinates.getX(), MIN_X, "Coordinates.x");
-    Validator.validateGreaterThan(coordinates.getY(), MIN_Y, "Coordinates.y");
-    Validator.validateNotNull(creationDate, "SpaceMarine.creationDate");
-    Validator.validateGreaterThan(health, 0, "SpaceMarine.health");
-    Validator.validateNotNull(category, "SpaceMarine.category");
-    if (chapter != null) {
-      Validator.validateString(chapter.getName(), "Chapter.name");
-    }
   }
 
   /**
@@ -130,6 +113,41 @@ public class SpaceMarine implements Comparable<SpaceMarine>, Serializable {
     return chapter;
   }
 
+  /**
+   * @return координаты космодесантника
+   */
+  public Coordinates getCoordinates() {
+    return coordinates;
+  }
+
+  /**
+   * @return рост космодесантника
+   */
+  public long getHeight() {
+    return height;
+  }
+
+  /**
+   * @return оружие ближнего боя или null
+   */
+  public MeleeWeapon getMeleeWeapon() {
+    return meleeWeapon;
+  }
+
+  /**
+   * @return логин пользователя-владельца объекта или null, если объект ещё не сохранён
+   */
+  public String getOwner() {
+    return owner;
+  }
+
+  /**
+   * @param owner логин пользователя-владельца объекта
+   */
+  public void setOwner(String owner) {
+    this.owner = owner;
+  }
+
   @Override
   public int compareTo(SpaceMarine o) {
     return Float.compare(this.health, o.health);
@@ -166,7 +184,8 @@ public class SpaceMarine implements Comparable<SpaceMarine>, Serializable {
                          Height:       %d
                          Category:     %s
                          Melee Weapon: %s
-                         Chapter:      %s""",
+                         Chapter:      %s
+                         Owner:        %s""",
         separator,
         id,
         name,
@@ -178,6 +197,7 @@ public class SpaceMarine implements Comparable<SpaceMarine>, Serializable {
         height,
         category,
         meleeWeapon != null ? meleeWeapon : "-",
-        chapter != null ? chapter.getName() : "-");
+        chapter != null ? chapter.getName() : "-",
+        owner != null ? owner : "-");
   }
 }

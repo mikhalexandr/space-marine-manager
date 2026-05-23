@@ -29,6 +29,13 @@ public class Chapter implements Comparable<Chapter>, Serializable {
     return name;
   }
 
+  /**
+   * @return родительский легион или null
+   */
+  public String getParentLegion() {
+    return parentLegion;
+  }
+
   @Override
   public int compareTo(Chapter o) {
     return this.name.compareTo(o.name);

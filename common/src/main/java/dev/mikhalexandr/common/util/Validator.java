@@ -53,7 +53,7 @@ public final class Validator {
   public static void validateGreaterThan(double value, double min, String fieldName) {
     if (value <= min) {
       throw new ValidationException(
-          String.format("%s должен быть больше %s, получено: %s", fieldName, value, min));
+          String.format("%s должен быть больше %s, получено: %s", fieldName, min, value));
     }
   }
 
