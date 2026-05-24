@@ -4,15 +4,18 @@ import dev.mikhalexandr.common.util.Env;
 import dev.mikhalexandr.server.auth.AuthService;
 import dev.mikhalexandr.server.db.Database;
 import dev.mikhalexandr.server.db.DatabaseConfig;
+import dev.mikhalexandr.server.db.JdbcSpaceMarineRepository;
+import dev.mikhalexandr.server.db.JdbcUserRepository;
 import dev.mikhalexandr.server.db.SchemaInitializer;
 import dev.mikhalexandr.server.db.SpaceMarineRepository;
-import dev.mikhalexandr.server.db.UserRepository;
 import dev.mikhalexandr.server.managers.CollectionManager;
 import dev.mikhalexandr.server.managers.CommandExecutor;
 import dev.mikhalexandr.server.managers.CommandManager;
-import dev.mikhalexandr.server.managers.proxy.AuthenticatingCommandExecutorProxy;
-import dev.mikhalexandr.server.managers.proxy.LoggingCommandExecutorProxy;
-import dev.mikhalexandr.server.managers.proxy.ValidatingCommandExecutorProxy;
+import dev.mikhalexandr.server.managers.proxy.AuthenticatingInterceptor;
+import dev.mikhalexandr.server.managers.proxy.CommandExecutorProxyFactory;
+import dev.mikhalexandr.server.managers.proxy.IdempotencyInterceptor;
+import dev.mikhalexandr.server.managers.proxy.LoggingInterceptor;
+import dev.mikhalexandr.server.managers.proxy.ValidatingInterceptor;
 import dev.mikhalexandr.server.network.TcpServer;
 import dev.mikhalexandr.server.security.ServerIdentity;
 import dev.mikhalexandr.server.security.VaultPkiClient;
@@ -48,12 +51,12 @@ public class ServerBootstrap {
     Database database = new Database(databaseConfig);
     new SchemaInitializer(database).initialize();
 
-    SpaceMarineRepository marineRepository = new SpaceMarineRepository(database);
+    SpaceMarineRepository marineRepository = new JdbcSpaceMarineRepository(database);
     CollectionManager collectionManager = new CollectionManager();
     collectionManager.loadAll(marineRepository.findAll());
     LOGGER.info("Коллекция загружена из БД: {} элементов", collectionManager.size());
 
-    AuthService authService = new AuthService(new UserRepository(database));
+    AuthService authService = new AuthService(new JdbcUserRepository(database));
     CommandManager commandManager = new CommandManager();
     commandRegistryInitializer.register(commandManager, collectionManager, marineRepository);
 
@@ -63,9 +66,12 @@ public class ServerBootstrap {
         identity.certificate().getSubjectX500Principal());
 
     CommandExecutor commandExecutor =
-        new LoggingCommandExecutorProxy(
-            new ValidatingCommandExecutorProxy(
-                new AuthenticatingCommandExecutorProxy(commandManager, authService)));
+        CommandExecutorProxyFactory.create(
+            commandManager,
+            new IdempotencyInterceptor(),
+            new LoggingInterceptor(),
+            new ValidatingInterceptor(),
+            new AuthenticatingInterceptor(authService));
     TcpServer tcpServer = new TcpServer(port, commandExecutor, identity);
     Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(tcpServer, database)));
     tcpServer.run();
