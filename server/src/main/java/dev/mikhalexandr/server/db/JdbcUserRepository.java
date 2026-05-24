@@ -4,7 +4,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Optional;
 
-
 public final class JdbcUserRepository implements UserRepository {
   private static final String EXISTS_SQL = "SELECT 1 FROM users WHERE login = ?";
   private static final String INSERT_SQL = "INSERT INTO users (login, password_hash) VALUES (?, ?)";

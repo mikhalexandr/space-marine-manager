@@ -6,7 +6,6 @@ import dev.mikhalexandr.server.managers.CommandExecutor;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 public final class IdempotencyInterceptor implements CommandInterceptor {
   private final Map<String, CommandResponse> processed = new ConcurrentHashMap<>();
 

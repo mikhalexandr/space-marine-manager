@@ -3,7 +3,6 @@ package dev.mikhalexandr.server.db;
 import dev.mikhalexandr.common.models.SpaceMarine;
 import java.util.List;
 
-
 public interface SpaceMarineRepository {
 
   void insert(SpaceMarine marine, String ownerLogin);

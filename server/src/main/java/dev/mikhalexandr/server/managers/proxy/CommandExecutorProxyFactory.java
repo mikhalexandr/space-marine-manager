@@ -8,7 +8,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.List;
 
-
 public final class CommandExecutorProxyFactory {
   private CommandExecutorProxyFactory() {
     throw new UnsupportedOperationException("Это утилитарный класс, его нельзя инстанцировать");
