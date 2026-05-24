@@ -1,6 +1,7 @@
 package dev.mikhalexandr.server.db;
 
 import dev.mikhalexandr.common.util.Env;
+import dev.mikhalexandr.server.exceptions.DataAccessException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
