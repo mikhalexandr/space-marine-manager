@@ -1,40 +1,24 @@
 package dev.mikhalexandr.server.db;
 
-import java.sql.Statement;
+import static org.jooq.impl.DSL.field;
+
+import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Создаёт схему бд при старте сервера */
+/** Создаёт схему БД при старте сервера */
 public final class SchemaInitializer {
   private static final Logger LOGGER = LoggerFactory.getLogger(SchemaInitializer.class);
 
-  private static final String CREATE_USERS_TABLE =
-      """
-      CREATE TABLE IF NOT EXISTS users (
-          id            BIGSERIAL PRIMARY KEY,
-          login         VARCHAR(64) NOT NULL UNIQUE,
-          password_hash VARCHAR(32) NOT NULL
-      )""";
-
-  private static final String CREATE_MARINE_SEQUENCE =
-      "CREATE SEQUENCE IF NOT EXISTS space_marine_id_seq AS INTEGER START WITH 1 INCREMENT BY 1";
-
-  private static final String CREATE_MARINES_TABLE =
-      """
-      CREATE TABLE IF NOT EXISTS space_marines (
-          id                    INTEGER PRIMARY KEY DEFAULT nextval('space_marine_id_seq'),
-          name                  VARCHAR(255) NOT NULL,
-          coordinate_x          DOUBLE PRECISION NOT NULL,
-          coordinate_y          BIGINT NOT NULL,
-          creation_date         TIMESTAMP NOT NULL DEFAULT now(),
-          health                REAL NOT NULL,
-          height                BIGINT NOT NULL,
-          category              VARCHAR(32) NOT NULL,
-          melee_weapon          VARCHAR(32),
-          chapter_name          VARCHAR(255),
-          chapter_parent_legion VARCHAR(255),
-          owner_login           VARCHAR(64) NOT NULL REFERENCES users(login) ON DELETE CASCADE
-      )""";
+  private static final int LOGIN_LENGTH = 64;
+  private static final int PASSWORD_HASH_LENGTH = 32;
+  private static final int NAME_LENGTH = 255;
+  private static final int CATEGORY_LENGTH = 32;
+  private static final int KEY_LENGTH = 64;
+  private static final int STATUS_LENGTH = 16;
 
   private final Database database;
 
@@ -49,13 +33,75 @@ public final class SchemaInitializer {
   public void initialize() {
     database.execute(
         connection -> {
-          try (Statement statement = connection.createStatement()) {
-            statement.execute(CREATE_USERS_TABLE);
-            statement.execute(CREATE_MARINE_SEQUENCE);
-            statement.execute(CREATE_MARINES_TABLE);
-          }
+          DSLContext dsl = DSL.using(connection, SQLDialect.POSTGRES);
+          createUsers(dsl);
+          createMarines(dsl);
+          createIdempotencyKeys(dsl);
           return null;
         });
-    LOGGER.info("Схема БД четенькая: users, space_marine_id_seq, space_marines");
+    LOGGER.info("Схема БД четенькая");
+  }
+
+  private static void createUsers(DSLContext dsl) {
+    dsl.createTableIfNotExists("users")
+        .column("id", SQLDataType.BIGINT.identity(true))
+        .column("login", SQLDataType.VARCHAR(LOGIN_LENGTH).nullable(false))
+        .column("password_hash", SQLDataType.VARCHAR(PASSWORD_HASH_LENGTH).nullable(false))
+        .constraints(
+            DSL.constraint("pk_users").primaryKey("id"),
+            DSL.constraint("uq_users_login").unique("login"))
+        .execute();
+  }
+
+  private static void createMarines(DSLContext dsl) {
+    dsl.createSequenceIfNotExists("space_marine_id_seq").execute();
+    dsl.createTableIfNotExists("space_marines")
+        .column(
+            "id",
+            SQLDataType.INTEGER
+                .nullable(false)
+                .defaultValue(field("nextval('space_marine_id_seq')", SQLDataType.INTEGER)))
+        .column("name", SQLDataType.VARCHAR(NAME_LENGTH).nullable(false))
+        .column("coordinate_x", SQLDataType.DOUBLE.nullable(false))
+        .column("coordinate_y", SQLDataType.BIGINT.nullable(false))
+        .column(
+            "creation_date",
+            SQLDataType.TIMESTAMP
+                .nullable(false)
+                .defaultValue(field("now()", SQLDataType.TIMESTAMP)))
+        .column("health", SQLDataType.REAL.nullable(false))
+        .column("height", SQLDataType.BIGINT.nullable(false))
+        .column("category", SQLDataType.VARCHAR(CATEGORY_LENGTH).nullable(false))
+        .column("melee_weapon", SQLDataType.VARCHAR(CATEGORY_LENGTH))
+        .column("chapter_name", SQLDataType.VARCHAR(NAME_LENGTH))
+        .column("chapter_parent_legion", SQLDataType.VARCHAR(NAME_LENGTH))
+        .column("owner_login", SQLDataType.VARCHAR(LOGIN_LENGTH).nullable(false))
+        .constraints(
+            DSL.constraint("pk_space_marines").primaryKey("id"),
+            DSL.constraint("fk_space_marines_owner")
+                .foreignKey("owner_login")
+                .references("users", "login")
+                .onDeleteCascade())
+        .execute();
+  }
+
+  private static void createIdempotencyKeys(DSLContext dsl) {
+    dsl.createTableIfNotExists("idempotency_keys")
+        .column("user_id", SQLDataType.VARCHAR(KEY_LENGTH).nullable(false))
+        .column("request_id", SQLDataType.VARCHAR(KEY_LENGTH).nullable(false))
+        .column("request_hash", SQLDataType.VARCHAR(KEY_LENGTH).nullable(false))
+        .column("status", SQLDataType.VARCHAR(STATUS_LENGTH).nullable(false))
+        .column("response", SQLDataType.BLOB)
+        .column(
+            "created_at",
+            SQLDataType.LOCALDATETIME
+                .nullable(false)
+                .defaultValue(field("now()", SQLDataType.LOCALDATETIME)))
+        .column("completed_at", SQLDataType.LOCALDATETIME)
+        .constraints(DSL.constraint("pk_idempotency_keys").primaryKey("user_id", "request_id"))
+        .execute();
+    dsl.createIndexIfNotExists("idx_idempotency_created_at")
+        .on("idempotency_keys", "created_at")
+        .execute();
   }
 }
