@@ -36,8 +36,9 @@ public class RemoveByIdCommand extends Command {
   public CommandResponse execute(CommandRequest request) throws CommandExecutionException {
     int id = resolveId(request);
     String user = currentUser(request);
-    SpaceMarine existing = collectionManager.getById(id);
+    SpaceMarine existing = repository.findById(id).orElseGet(() -> collectionManager.getById(id));
     if (existing == null) {
+      collectionManager.removeById(id);
       return CommandResponse.success(String.format("Элемент с id=%d не найден", id));
     }
     assert user != null;
@@ -47,7 +48,7 @@ public class RemoveByIdCommand extends Command {
               "Элемент с id=%d принадлежит пользователю '%s' — удалять нельзя",
               id, existing.getOwner()));
     }
-    boolean removedFromDb = repository.deleteById(id);
+    boolean removedFromDb = repository.deleteByIdAndOwner(id, user);
     collectionManager.removeById(id);
     if (removedFromDb) {
       return CommandResponse.success(String.format("Элемент с id=%d удалён", id));
