@@ -22,6 +22,7 @@ public final class Database implements AutoCloseable {
 
   private final DatabaseConfig config;
   private final BlockingQueue<Connection> idle;
+  private final ThreadLocal<Connection> activeTransaction = new ThreadLocal<>();
   private volatile boolean closed;
 
   /**
@@ -56,6 +57,14 @@ public final class Database implements AutoCloseable {
    * @return результат действия
    */
   public <T> T execute(ConnectionCallback<T> callback) {
+    Connection bound = activeTransaction.get();
+    if (bound != null) {
+      try {
+        return callback.run(bound);
+      } catch (SQLException e) {
+        throw new DataAccessException("Ошибка выполнения запроса к БД: " + e.getMessage(), e);
+      }
+    }
     Connection connection = borrow();
     try {
       return callback.run(connection);
@@ -63,6 +72,54 @@ public final class Database implements AutoCloseable {
       throw new DataAccessException("Ошибка выполнения запроса к БД: " + e.getMessage(), e);
     } finally {
       release(connection);
+    }
+  }
+
+  /**
+   * Выполняет действие в рамках одной транзакции
+   *
+   * @param callback действие над соединением транзакции
+   * @param <T> тип результата
+   * @return результат действия
+   */
+  public <T> T inTransaction(ConnectionCallback<T> callback) {
+    if (activeTransaction.get() != null) {
+      return execute(callback);
+    }
+    Connection connection = borrow();
+    activeTransaction.set(connection);
+    boolean committed = false;
+    try {
+      connection.setAutoCommit(false);
+      T result = callback.run(connection);
+      connection.commit();
+      committed = true;
+      return result;
+    } catch (SQLException e) {
+      throw new DataAccessException("Ошибка транзакции БД: " + e.getMessage(), e);
+    } finally {
+      if (!committed) {
+        rollbackQuietly(connection);
+      }
+      activeTransaction.remove();
+      restoreAutoCommit(connection);
+      release(connection);
+    }
+  }
+
+  private static void rollbackQuietly(Connection connection) {
+    try {
+      connection.rollback();
+    } catch (SQLException e) {
+      LOGGER.warn("Не удалось откатить транзакцию: {}", e.getMessage());
+    }
+  }
+
+  private static void restoreAutoCommit(Connection connection) {
+    try {
+      connection.setAutoCommit(true);
+    } catch (SQLException e) {
+      LOGGER.debug("Не удалось вернуть autoCommit=true", e);
     }
   }
 

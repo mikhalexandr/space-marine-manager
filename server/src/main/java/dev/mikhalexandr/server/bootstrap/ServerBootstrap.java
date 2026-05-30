@@ -4,8 +4,10 @@ import dev.mikhalexandr.common.util.Env;
 import dev.mikhalexandr.server.auth.AuthService;
 import dev.mikhalexandr.server.db.Database;
 import dev.mikhalexandr.server.db.DatabaseConfig;
-import dev.mikhalexandr.server.db.JdbcSpaceMarineRepository;
-import dev.mikhalexandr.server.db.JdbcUserRepository;
+import dev.mikhalexandr.server.db.IdempotencyStore;
+import dev.mikhalexandr.server.db.JooqIdempotencyStore;
+import dev.mikhalexandr.server.db.JooqSpaceMarineRepository;
+import dev.mikhalexandr.server.db.JooqUserRepository;
 import dev.mikhalexandr.server.db.SchemaInitializer;
 import dev.mikhalexandr.server.db.SpaceMarineRepository;
 import dev.mikhalexandr.server.managers.CollectionManager;
@@ -20,6 +22,8 @@ import dev.mikhalexandr.server.network.TcpServer;
 import dev.mikhalexandr.server.security.ServerIdentity;
 import dev.mikhalexandr.server.security.VaultPkiClient;
 import java.io.IOException;
+import java.time.Duration;
+import java.util.concurrent.ScheduledExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +39,8 @@ public class ServerBootstrap {
   private static final String ENV_VAULT_COMMON_NAME = "VAULT_COMMON_NAME";
   private static final String DEFAULT_VAULT_PKI_ROLE = "server-role";
   private static final String DEFAULT_VAULT_COMMON_NAME = "localhost";
+  private static final long IDEMPOTENCY_RETENTION_HOURS = 24;
+  private static final long IDEMPOTENCY_CLEANUP_PERIOD_MINUTES = 30;
 
   private final CommandRegistryInitializer commandRegistryInitializer =
       new CommandRegistryInitializer();
@@ -51,12 +57,12 @@ public class ServerBootstrap {
     Database database = new Database(databaseConfig);
     new SchemaInitializer(database).initialize();
 
-    SpaceMarineRepository marineRepository = new JdbcSpaceMarineRepository(database);
+    SpaceMarineRepository marineRepository = new JooqSpaceMarineRepository(database);
     CollectionManager collectionManager = new CollectionManager();
     collectionManager.loadAll(marineRepository.findAll());
     LOGGER.info("Коллекция загружена из БД: {} элементов", collectionManager.size());
 
-    AuthService authService = new AuthService(new JdbcUserRepository(database));
+    AuthService authService = new AuthService(new JooqUserRepository(database));
     CommandManager commandManager = new CommandManager();
     commandRegistryInitializer.register(commandManager, collectionManager, marineRepository);
 
@@ -65,20 +71,38 @@ public class ServerBootstrap {
         "Серверная личность загружена: subject={}",
         identity.certificate().getSubjectX500Principal());
 
+    IdempotencyStore idempotencyStore = new JooqIdempotencyStore(database);
+    IdempotencyInterceptor idempotencyInterceptor =
+        new IdempotencyInterceptor(database, idempotencyStore);
+    ScheduledExecutorService idempotencyCleanup =
+        idempotencyInterceptor.startCleanup(
+            Duration.ofHours(IDEMPOTENCY_RETENTION_HOURS),
+            Duration.ofMinutes(IDEMPOTENCY_CLEANUP_PERIOD_MINUTES));
+
     CommandExecutor commandExecutor =
-        CommandExecutorProxyFactory.create(
-            commandManager,
-            new IdempotencyInterceptor(),
-            new LoggingInterceptor(),
-            new ValidatingInterceptor(),
-            new AuthenticatingInterceptor(authService));
+        buildCommandExecutor(commandManager, idempotencyInterceptor, authService);
     TcpServer tcpServer = new TcpServer(port, commandExecutor, identity);
-    Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(tcpServer, database)));
+    Runtime.getRuntime()
+        .addShutdownHook(new Thread(() -> shutdown(tcpServer, database, idempotencyCleanup)));
     tcpServer.run();
   }
 
-  private static void shutdown(TcpServer tcpServer, Database database) {
+  private static CommandExecutor buildCommandExecutor(
+      CommandManager commandManager,
+      IdempotencyInterceptor idempotencyInterceptor,
+      AuthService authService) {
+    return CommandExecutorProxyFactory.create(
+        commandManager,
+        idempotencyInterceptor,
+        new LoggingInterceptor(),
+        new ValidatingInterceptor(),
+        new AuthenticatingInterceptor(authService));
+  }
+
+  private static void shutdown(
+      TcpServer tcpServer, Database database, ScheduledExecutorService idempotencyCleanup) {
     tcpServer.stop();
+    idempotencyCleanup.shutdownNow();
     database.close();
   }
 

@@ -2,6 +2,7 @@ package dev.mikhalexandr.server.db;
 
 import dev.mikhalexandr.common.models.SpaceMarine;
 import java.util.List;
+import java.util.Optional;
 
 public interface SpaceMarineRepository {
 
@@ -9,9 +10,11 @@ public interface SpaceMarineRepository {
 
   boolean update(int id, SpaceMarine marine);
 
-  boolean deleteById(int id);
+  boolean deleteByIdAndOwner(int id, String ownerLogin);
 
   int deleteByOwner(String ownerLogin);
+
+  Optional<SpaceMarine> findById(int id);
 
   List<SpaceMarine> findAll();
 }

@@ -5,6 +5,7 @@ import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.common.protocol.FrameCodec;
 import dev.mikhalexandr.common.security.crypto.SessionCipher;
 import dev.mikhalexandr.common.util.Serializer;
+import dev.mikhalexandr.server.exceptions.IdempotencyConflictException;
 import dev.mikhalexandr.server.managers.CommandExecutor;
 import dev.mikhalexandr.server.security.ServerIdentity;
 import java.io.BufferedInputStream;
@@ -80,6 +81,9 @@ final class ClientReader implements Runnable {
   private CommandResponse executeSafely(CommandRequest request) {
     try {
       return commandExecutor.execute(request);
+    } catch (IdempotencyConflictException e) {
+      LOGGER.warn("Братан, конфликт идемпотентности: {}", e.getMessage());
+      return CommandResponse.error(e.getMessage());
     } catch (RuntimeException e) {
       LOGGER.error("Непредвиденная ошибка при обработке команды", e);
       return CommandResponse.error("Внутренняя ошибка сервера: " + e.getMessage());
