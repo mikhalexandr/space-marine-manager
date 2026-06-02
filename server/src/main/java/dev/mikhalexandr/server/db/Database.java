@@ -19,6 +19,8 @@ public final class Database implements AutoCloseable {
   private static final int VALIDATION_TIMEOUT_SECONDS = 3;
   private static final String ENV_POOL_SIZE = "DB_POOL_SIZE";
   private static final String DRIVER_CLASS = "org.postgresql.Driver";
+  private static final int LOCK_TIMEOUT_MILLIS = 3000;
+  private static final int STATEMENT_TIMEOUT_MILLIS = 10000;
 
   private final DatabaseConfig config;
   private final BlockingQueue<Connection> idle;
@@ -91,6 +93,7 @@ public final class Database implements AutoCloseable {
     boolean committed = false;
     try {
       connection.setAutoCommit(false);
+      applyTransactionTimeouts(connection);
       T result = callback.run(connection);
       connection.commit();
       committed = true;
@@ -104,6 +107,14 @@ public final class Database implements AutoCloseable {
       activeTransaction.remove();
       restoreAutoCommit(connection);
       release(connection);
+    }
+  }
+
+  /** Ставит таймауты на транзакцию */
+  private static void applyTransactionTimeouts(Connection connection) throws SQLException {
+    try (java.sql.Statement statement = connection.createStatement()) {
+      statement.execute("SET LOCAL lock_timeout = '" + LOCK_TIMEOUT_MILLIS + "'");
+      statement.execute("SET LOCAL statement_timeout = '" + STATEMENT_TIMEOUT_MILLIS + "'");
     }
   }
 
