@@ -17,8 +17,10 @@ import dev.mikhalexandr.server.managers.proxy.AuthenticatingInterceptor;
 import dev.mikhalexandr.server.managers.proxy.CommandExecutorProxyFactory;
 import dev.mikhalexandr.server.managers.proxy.IdempotencyInterceptor;
 import dev.mikhalexandr.server.managers.proxy.LoggingInterceptor;
+import dev.mikhalexandr.server.managers.proxy.RateLimitingInterceptor;
 import dev.mikhalexandr.server.managers.proxy.ValidatingInterceptor;
 import dev.mikhalexandr.server.network.TcpServer;
+import dev.mikhalexandr.server.ratelimit.RedisRateLimiter;
 import dev.mikhalexandr.server.security.ServerIdentity;
 import dev.mikhalexandr.server.security.VaultPkiClient;
 import java.io.IOException;
@@ -26,6 +28,7 @@ import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.JedisPool;
 
 /** Собирает зависимости, поднимает БД и коллекцию и запускает все, что может */
 public class ServerBootstrap {
@@ -41,6 +44,14 @@ public class ServerBootstrap {
   private static final String DEFAULT_VAULT_COMMON_NAME = "localhost";
   private static final long IDEMPOTENCY_RETENTION_HOURS = 24;
   private static final long IDEMPOTENCY_CLEANUP_PERIOD_MINUTES = 30;
+  private static final int RATE_LIMIT_MAX_REQUESTS = 100;
+  private static final long RATE_LIMIT_WINDOW_MILLIS = 10_000L;
+  private static final String ENV_REDIS_HOST = "REDIS_HOST";
+  private static final String ENV_REDIS_PORT = "REDIS_PORT";
+  private static final String ENV_REDIS_USERNAME = "REDIS_USERNAME";
+  private static final String ENV_REDIS_PASSWORD = "REDIS_PASSWORD";
+  private static final String DEFAULT_REDIS_HOST = "localhost";
+  private static final String DEFAULT_REDIS_PORT = "6379";
 
   private final CommandRegistryInitializer commandRegistryInitializer =
       new CommandRegistryInitializer();
@@ -79,30 +90,55 @@ public class ServerBootstrap {
             Duration.ofHours(IDEMPOTENCY_RETENTION_HOURS),
             Duration.ofMinutes(IDEMPOTENCY_CLEANUP_PERIOD_MINUTES));
 
+    RedisRateLimiter rateLimiter = buildRateLimiter();
+    RateLimitingInterceptor rateLimitingInterceptor = new RateLimitingInterceptor(rateLimiter);
     CommandExecutor commandExecutor =
-        buildCommandExecutor(commandManager, idempotencyInterceptor, authService);
+        buildCommandExecutor(
+            commandManager, rateLimitingInterceptor, idempotencyInterceptor, authService);
     TcpServer tcpServer = new TcpServer(port, commandExecutor, identity);
     Runtime.getRuntime()
-        .addShutdownHook(new Thread(() -> shutdown(tcpServer, database, idempotencyCleanup)));
+        .addShutdownHook(
+            new Thread(() -> shutdown(tcpServer, database, idempotencyCleanup, rateLimiter)));
     tcpServer.run();
   }
 
   private static CommandExecutor buildCommandExecutor(
       CommandManager commandManager,
+      RateLimitingInterceptor rateLimiter,
       IdempotencyInterceptor idempotencyInterceptor,
       AuthService authService) {
     return CommandExecutorProxyFactory.create(
         commandManager,
-        idempotencyInterceptor,
-        new LoggingInterceptor(),
         new ValidatingInterceptor(),
-        new AuthenticatingInterceptor(authService));
+        rateLimiter,
+        new AuthenticatingInterceptor(authService),
+        idempotencyInterceptor,
+        new LoggingInterceptor());
+  }
+
+  private static RedisRateLimiter buildRateLimiter() {
+    String redisHost = Env.orDefault(ENV_REDIS_HOST, DEFAULT_REDIS_HOST);
+    int redisPort = Integer.parseInt(Env.orDefault(ENV_REDIS_PORT, DEFAULT_REDIS_PORT));
+    String redisUsername = Env.orDefault(ENV_REDIS_USERNAME, null);
+    String redisPassword = Env.orDefault(ENV_REDIS_PASSWORD, null);
+    if (redisUsername == null || redisPassword == null) {
+      throw new IllegalStateException("Не заданы REDIS_USERNAME и REDIS_PASSWORD");
+    }
+    LOGGER.info("Rate limiter: Redis {}:{} (user={})", redisHost, redisPort, redisUsername);
+    return new RedisRateLimiter(
+        new JedisPool(redisHost, redisPort, redisUsername, redisPassword),
+        RATE_LIMIT_MAX_REQUESTS,
+        RATE_LIMIT_WINDOW_MILLIS);
   }
 
   private static void shutdown(
-      TcpServer tcpServer, Database database, ScheduledExecutorService idempotencyCleanup) {
+      TcpServer tcpServer,
+      Database database,
+      ScheduledExecutorService idempotencyCleanup,
+      RedisRateLimiter rateLimiter) {
     tcpServer.stop();
     idempotencyCleanup.shutdownNow();
+    rateLimiter.close();
     database.close();
   }
 
