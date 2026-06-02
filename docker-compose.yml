@@ -5,13 +5,28 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: space_marine
-      POSTGRES_USER: smm
-      POSTGRES_PASSWORD: smm
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB is required}"
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER is required}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U smm -d space_marine"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: smm-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--user", "default", "off",
+              "--user", "${REDIS_USERNAME:?REDIS_USERNAME is required}", "on",
+              ">${REDIS_PASSWORD:?REDIS_PASSWORD is required}", "~*", "+@all"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "--user", "${REDIS_USERNAME:?REDIS_USERNAME is required}",
+             "--pass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}", "--no-auth-warning", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -42,8 +57,6 @@ services:
   loki:
     image: grafana/loki:3.2.1
     container_name: smm-loki
-    ports:
-      - "3100:3100"
     volumes:
       - ./observability/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - ./observability/data/loki:/loki
@@ -70,11 +83,11 @@ services:
     image: grafana/grafana:11.3.0
     container_name: smm-grafana
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
     environment:
-      GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
-      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_USERNAME:?GRAFANA_USERNAME is required}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD:?GRAFANA_PASSWORD is required}"
       GF_FEATURE_TOGGLES_ENABLE: "logsExploreTableVisualisation"
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
