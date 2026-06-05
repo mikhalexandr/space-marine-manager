@@ -103,7 +103,7 @@ tasks:
     cmds:
       - docker compose stop postgres
       - docker compose rm -f postgres
-      - rm -rf data/postgres
+      - docker volume rm -f smm-postgres-data || true
 
   infra:down:
     desc: Stop everything (postgres + vault + observability)
@@ -120,7 +120,7 @@ tasks:
     desc: Build and run client
     cmds:
       - ./gradlew :client:jarWithDeps
-      - java -jar {{.CLIENT_JAR}} {{.CLI_ARGS}}
+      - java --enable-native-access=ALL-UNNAMED --sun-misc-unsafe-memory-access=allow -jar {{.CLIENT_JAR}} {{.CLI_ARGS}}
       # - java -jar client/build/libs/client-*-jar-with-dependencies.jar
 
   tunnel:helios:

@@ -31,19 +31,19 @@ public class CommandRequestParser {
     CommandType commandType = CommandType.fromWireName(commandName);
     return switch (commandType) {
       case HELP,
-              INFO,
-              SHOW,
-              CLEAR,
-              HEAD,
-              SUM_OF_HEALTH,
-              MAX_BY_CHAPTER,
-              HISTORY,
-              ADD,
-              ADD_IF_MIN,
-              EXIT,
-              EXECUTE_SCRIPT,
-              REGISTER,
-              LOGIN ->
+          INFO,
+          SHOW,
+          CLEAR,
+          HEAD,
+          SUM_OF_HEALTH,
+          MAX_BY_CHAPTER,
+          HISTORY,
+          ADD,
+          ADD_IF_MIN,
+          EXIT,
+          EXECUTE_SCRIPT,
+          REGISTER,
+          LOGIN ->
           new CommandRequest(commandType, NoArgsPayload.INSTANCE);
       case REMOVE_BY_ID, UPDATE -> buildIdBasedRequest(commandType, arguments);
       case COUNT_BY_CATEGORY -> buildCategoryRequest(arguments);

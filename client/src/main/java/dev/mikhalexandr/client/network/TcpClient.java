@@ -2,6 +2,8 @@ package dev.mikhalexandr.client.network;
 
 import dev.mikhalexandr.client.security.TrustAnchor;
 import dev.mikhalexandr.common.dto.auth.UserCredentials;
+import dev.mikhalexandr.common.dto.event.CollectionEvent;
+import dev.mikhalexandr.common.dto.event.ServerMessage;
 import dev.mikhalexandr.common.dto.request.CommandRequest;
 import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.common.protocol.FrameCodec;
@@ -14,11 +16,15 @@ import dev.mikhalexandr.common.security.handshake.HandshakeMessage;
 import dev.mikhalexandr.common.security.handshake.ServerHello;
 import dev.mikhalexandr.common.util.Bytes;
 import dev.mikhalexandr.common.util.Serializer;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -27,16 +33,17 @@ import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.util.Iterator;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Неблокирующий TCP-клиент с длинной сессией: одно соединение и один handshake на весь жизненный
- * цикл клиента
- */
+/** TCP-клиент */
 public class TcpClient implements Closeable {
   private static final Logger LOGGER = LoggerFactory.getLogger(TcpClient.class);
-  private static final int MAX_RESPONSE_SIZE = 8 * 1024 * 1024;
   private static final long RETRY_BACKOFF_STEP_MILLIS = 300L;
   private static final int SELECT_TIMEOUT_MILLIS = 200;
 
@@ -47,13 +54,21 @@ public class TcpClient implements Closeable {
   private final long requestTimeoutMillis;
   private final TrustAnchor trustAnchor;
   private final String clientId = UUID.randomUUID().toString();
+  private final Object sendLock = new Object();
 
   private Selector selector;
   private SocketChannel channel;
   private SelectionKey channelKey;
+  private InputStream in;
+  private OutputStream out;
   private X509Certificate serverCertificate;
   private SessionCipher sessionCipher;
   private UserCredentials credentials;
+  private Thread readerThread;
+  private volatile boolean shutdown;
+  private volatile CompletableFuture<CommandResponse> pendingResponse;
+  private volatile String pendingRequestId;
+  private volatile Consumer<CollectionEvent> eventListener;
 
   public TcpClient(
       String host,
@@ -78,35 +93,47 @@ public class TcpClient implements Closeable {
    */
   public CommandResponse send(CommandRequest request) throws IOException {
     attachCredentials(request);
-    IOException lastException = null;
-    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        ensureConnected();
-        return sendOnce(request);
-      } catch (ConnectException e) {
-        closeQuietly();
-        throw new IOException(
-            String.format("Сервер недоступен (%s:%d): %s", host, port, e.getMessage()), e);
-      } catch (IOException e) {
-        lastException = e;
-        LOGGER.warn(
-            "Попытка {} из {} оборвалась ({}), переподключаюсь...",
-            attempt,
-            maxAttempts,
-            e.getMessage());
-        closeQuietly();
-        if (attempt < maxAttempts) {
-          sleepQuietly(attempt * RETRY_BACKOFF_STEP_MILLIS);
+    synchronized (sendLock) {
+      IOException lastException = null;
+      for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          ensureConnected();
+          return exchange(request);
+        } catch (ConnectException e) {
+          closeQuietly();
+          throw new IOException(
+              String.format("Сервер недоступен (%s:%d): %s", host, port, e.getMessage()), e);
+        } catch (IOException e) {
+          lastException = e;
+          LOGGER.warn(
+              "Попытка {} из {} оборвалась ({}), переподключаюсь...",
+              attempt,
+              maxAttempts,
+              e.getMessage());
+          closeQuietly();
+          if (attempt < maxAttempts) {
+            sleepQuietly(attempt * RETRY_BACKOFF_STEP_MILLIS);
+          }
         }
       }
+      throw new IOException(
+          String.format("Сервер временно недоступен (%s:%d), попыток: %d", host, port, maxAttempts),
+          lastException);
     }
-    throw new IOException(
-        String.format("Сервер временно недоступен (%s:%d), попыток: %d", host, port, maxAttempts),
-        lastException);
+  }
+
+  /**
+   * Регистрирует слушатель серверных push-событий
+   *
+   * @param listener потребитель событий коллекции или null для отписки
+   */
+  public void setEventListener(Consumer<CollectionEvent> listener) {
+    this.eventListener = listener;
   }
 
   @Override
   public void close() {
+    shutdown = true;
     closeQuietly();
   }
 
@@ -126,14 +153,48 @@ public class TcpClient implements Closeable {
     }
   }
 
+  private CommandResponse exchange(CommandRequest request) throws IOException {
+    CompletableFuture<CommandResponse> future = new CompletableFuture<>();
+    pendingRequestId = request.getRequestId();
+    pendingResponse = future;
+    try {
+      byte[] encrypted = sessionCipher.encrypt(Serializer.serialize(request));
+      FrameCodec.writeFrame(out, encrypted);
+      return future.get(requestTimeoutMillis, TimeUnit.MILLISECONDS);
+    } catch (TimeoutException e) {
+      throw new IOException("Таймаут ожидания ответа от сервера", e);
+    } catch (ExecutionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof IOException io) {
+        throw io;
+      }
+      throw new IOException("Ошибка обмена с сервером", cause);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("Ожидание ответа прервано", e);
+    } finally {
+      pendingResponse = null;
+      pendingRequestId = null;
+    }
+  }
+
   private void ensureConnected() throws IOException {
-    if (channel != null && channel.isConnected() && sessionCipher != null) {
+    if (shutdown) {
+      throw new IOException("Клиент закрыт");
+    }
+    if (channel != null
+        && channel.isConnected()
+        && sessionCipher != null
+        && readerThread != null
+        && readerThread.isAlive()) {
       return;
     }
     closeQuietly();
     LOGGER.info("Подключаюсь к серверу {}:{}", host, port);
     openConnection();
+    switchToBlocking();
     performHandshake();
+    startReader();
     LOGGER.info(
         "Handshake завершён: server CN={} (issuer={})",
         serverCertificate.getSubjectX500Principal(),
@@ -155,7 +216,6 @@ public class TcpClient implements Closeable {
       selector.select(SELECT_TIMEOUT_MILLIS);
       finishConnectIfReady();
     }
-    channelKey.interestOps(0);
   }
 
   private void finishConnectIfReady() throws IOException {
@@ -167,6 +227,22 @@ public class TcpClient implements Closeable {
         throw new IOException("Не удалось завершить установку соединения");
       }
     }
+  }
+
+  /** Снимает канал с селектора и переводит его в блокирующий режим, оборачивая в потоки */
+  private void switchToBlocking() throws IOException {
+    if (channelKey != null) {
+      channelKey.cancel();
+      channelKey = null;
+    }
+    if (selector != null) {
+      selector.selectNow();
+      selector.close();
+      selector = null;
+    }
+    channel.configureBlocking(true);
+    this.in = new BufferedInputStream(Channels.newInputStream(channel));
+    this.out = new BufferedOutputStream(Channels.newOutputStream(channel));
   }
 
   private void performHandshake() throws IOException {
@@ -192,11 +268,11 @@ public class TcpClient implements Closeable {
 
   private void sendClientHello(byte[] ephemeralPublicKey) throws IOException {
     ClientHello hello = new ClientHello(clientId, System.currentTimeMillis(), ephemeralPublicKey);
-    writeFrame(FrameCodec.toFrame(Serializer.serialize(hello)));
+    FrameCodec.writeFrame(out, Serializer.serialize(hello));
   }
 
   private ServerHello receiveServerHello() throws IOException {
-    HandshakeMessage message = deserializeHandshake(readFrame());
+    HandshakeMessage message = deserializeHandshake(FrameCodec.readFrame(in));
     return message.asServerHello();
   }
 
@@ -206,92 +282,63 @@ public class TcpClient implements Closeable {
     MessageSigner.verify(transcript, serverHello.signature(), serverCertificate.getPublicKey());
   }
 
-  private CommandResponse sendOnce(CommandRequest request) throws IOException {
-    byte[] plaintext = Serializer.serialize(request);
-    byte[] encrypted = sessionCipher.encrypt(plaintext);
-    writeFrame(FrameCodec.toFrame(encrypted));
-    byte[] decrypted = sessionCipher.decrypt(readFrame());
-    return deserializeResponse(decrypted);
+  private void startReader() {
+    final SessionCipher cipher = this.sessionCipher;
+    final InputStream input = this.in;
+    Thread thread = new Thread(() -> readLoop(cipher, input), "tcp-client-reader");
+    thread.setDaemon(true);
+    readerThread = thread;
+    thread.start();
   }
 
-  private void writeFrame(byte[] frame) throws IOException {
-    ByteBuffer buffer = ByteBuffer.wrap(frame);
-    channelKey.interestOps(SelectionKey.OP_WRITE);
-    long deadline = System.currentTimeMillis() + requestTimeoutMillis;
-    while (buffer.hasRemaining()) {
-      if (System.currentTimeMillis() > deadline) {
-        throw new IOException("Таймаут отправки фрейма");
+  private void readLoop(SessionCipher cipher, InputStream input) {
+    try {
+      while (true) {
+        byte[] frame = FrameCodec.readFrame(input);
+        ServerMessage message = deserializeServerMessage(cipher.decrypt(frame));
+        dispatch(message);
       }
-      selector.select(SELECT_TIMEOUT_MILLIS);
-      Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-      while (iterator.hasNext()) {
-        SelectionKey key = iterator.next();
-        iterator.remove();
-        if (key.isWritable()) {
-          channel.write(buffer);
+    } catch (IOException e) {
+      failPending(e);
+      LOGGER.debug("Поток-читатель завершён: {}", e.getMessage());
+    }
+  }
+
+  private void dispatch(ServerMessage message) {
+    if (message.getKind() == ServerMessage.Kind.EVENT) {
+      Consumer<CollectionEvent> listener = eventListener;
+      CollectionEvent event = message.getEvent();
+      if (listener != null && event != null) {
+        try {
+          listener.accept(event);
+        } catch (RuntimeException e) {
+          LOGGER.warn("Ошибка обработки серверного события", e);
         }
       }
+      return;
     }
-    channelKey.interestOps(0);
-  }
-
-  private byte[] readFrame() throws IOException {
-    channelKey.interestOps(SelectionKey.OP_READ);
-    ReadState state = new ReadState();
-    long deadline = System.currentTimeMillis() + requestTimeoutMillis;
-    while (true) {
-      if (System.currentTimeMillis() > deadline) {
-        throw new IOException("Таймаут ожидания ответа от сервера");
-      }
-      selector.select(SELECT_TIMEOUT_MILLIS);
-      byte[] payload = drainReadable(state);
-      if (payload != null) {
-        channelKey.interestOps(0);
-        return payload;
-      }
+    CompletableFuture<CommandResponse> future = pendingResponse;
+    String expected = pendingRequestId;
+    if (future != null && (expected == null || expected.equals(message.getCorrelationId()))) {
+      future.complete(message.getResponse());
+    } else {
+      LOGGER.debug("Ответ без ожидающего запроса (correlationId={})", message.getCorrelationId());
     }
   }
 
-  private byte[] drainReadable(ReadState state) throws IOException {
-    Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-    while (iterator.hasNext()) {
-      SelectionKey key = iterator.next();
-      iterator.remove();
-      if (!key.isReadable()) {
-        continue;
-      }
-      byte[] payload = readChunk(state);
-      if (payload != null) {
-        return payload;
-      }
+  private void failPending(IOException error) {
+    CompletableFuture<CommandResponse> future = pendingResponse;
+    if (future != null && !future.isDone()) {
+      future.completeExceptionally(error);
     }
-    return null;
   }
 
-  private byte[] readChunk(ReadState state) throws IOException {
-    if (state.payloadBuffer == null) {
-      int read = channel.read(state.lengthBuffer);
-      if (read < 0) {
-        throw new IOException("Сервер закрыл соединение при чтении длины ответа");
-      }
-      if (state.lengthBuffer.hasRemaining()) {
-        return null;
-      }
-      state.lengthBuffer.flip();
-      int payloadLength = state.lengthBuffer.getInt();
-      if (payloadLength < 0 || payloadLength > MAX_RESPONSE_SIZE) {
-        throw new IOException("Некорректный размер ответа: " + payloadLength);
-      }
-      state.payloadBuffer = ByteBuffer.allocate(payloadLength);
+  private static ServerMessage deserializeServerMessage(byte[] payload) throws IOException {
+    try {
+      return Serializer.deserialize(payload, ServerMessage.class);
+    } catch (ClassNotFoundException e) {
+      throw new IOException("Не удалось десериализовать сообщение сервера", e);
     }
-    int read = channel.read(state.payloadBuffer);
-    if (read < 0) {
-      throw new IOException("Сервер закрыл соединение при чтении payload ответа");
-    }
-    if (state.payloadBuffer.hasRemaining()) {
-      return null;
-    }
-    return state.payloadBuffer.array();
   }
 
   private static HandshakeMessage deserializeHandshake(byte[] payload) throws IOException {
@@ -302,33 +349,28 @@ public class TcpClient implements Closeable {
     }
   }
 
-  private static CommandResponse deserializeResponse(byte[] payload) throws IOException {
-    try {
-      return Serializer.deserialize(payload, CommandResponse.class);
-    } catch (ClassNotFoundException e) {
-      throw new IOException("Не удалось десериализовать ответ сервера", e);
-    }
-  }
-
   private void closeQuietly() {
     serverCertificate = null;
     sessionCipher = null;
     channelKey = null;
-    if (channel != null) {
+    closeResource(in);
+    in = null;
+    closeResource(out);
+    out = null;
+    closeResource(channel);
+    channel = null;
+    closeResource(selector);
+    selector = null;
+    failPending(new IOException("Соединение закрыто"));
+  }
+
+  private static void closeResource(Closeable resource) {
+    if (resource != null) {
       try {
-        channel.close();
+        resource.close();
       } catch (IOException e) {
-        LOGGER.debug("Не удалось закрыть канал клиента", e);
+        LOGGER.debug("Не удалось закрыть ресурс клиента", e);
       }
-      channel = null;
-    }
-    if (selector != null) {
-      try {
-        selector.close();
-      } catch (IOException e) {
-        LOGGER.debug("Не удалось закрыть Selector клиента", e);
-      }
-      selector = null;
     }
   }
 
@@ -338,10 +380,5 @@ public class TcpClient implements Closeable {
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
     }
-  }
-
-  private static final class ReadState {
-    private final ByteBuffer lengthBuffer = ByteBuffer.allocate(Integer.BYTES);
-    private ByteBuffer payloadBuffer;
   }
 }

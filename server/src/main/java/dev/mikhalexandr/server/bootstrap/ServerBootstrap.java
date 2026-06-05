@@ -96,9 +96,8 @@ public class ServerBootstrap {
         buildCommandExecutor(
             commandManager, rateLimitingInterceptor, idempotencyInterceptor, authService);
     TcpServer tcpServer = new TcpServer(port, commandExecutor, identity);
-    Runtime.getRuntime()
-        .addShutdownHook(
-            new Thread(() -> shutdown(tcpServer, database, idempotencyCleanup, rateLimiter)));
+    collectionManager.setEventPublisher(tcpServer.eventPublisher());
+    registerShutdownHook(tcpServer, database, idempotencyCleanup, rateLimiter);
     tcpServer.run();
   }
 
@@ -129,6 +128,16 @@ public class ServerBootstrap {
         new JedisPool(redisHost, redisPort, redisUsername, redisPassword),
         RATE_LIMIT_MAX_REQUESTS,
         RATE_LIMIT_WINDOW_MILLIS);
+  }
+
+  private static void registerShutdownHook(
+      TcpServer tcpServer,
+      Database database,
+      ScheduledExecutorService idempotencyCleanup,
+      RedisRateLimiter rateLimiter) {
+    Runtime.getRuntime()
+        .addShutdownHook(
+            new Thread(() -> shutdown(tcpServer, database, idempotencyCleanup, rateLimiter)));
   }
 
   private static void shutdown(
