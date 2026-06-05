@@ -35,9 +35,36 @@ http_status() {
     "${VAULT_ADDR}/v1/${path}"
 }
 
+fail_if_errors() {
+  local response="$1"
+  echo "$response" | python3 -c '
+import json
+import sys
+
+data = json.load(sys.stdin)
+errors = data.get("errors")
+if not errors:
+    sys.exit(1)
+print("Vault error: " + "; ".join(map(str, errors)), file=sys.stderr)
+'
+}
+
+unseal_key_from_state() {
+  python3 -c '
+import json
+import sys
+
+data = json.load(open(sys.argv[1]))
+keys = data.get("keys") or data.get("keys_base64") or data.get("unseal_keys_b64")
+if not keys:
+    raise SystemExit("Не нашёл unseal key в " + sys.argv[1])
+print(keys[0])
+' "$STATE_FILE"
+}
+
 echo "Vault: ${VAULT_ADDR}"
 if ! curl --silent --fail --max-time 3 "${VAULT_ADDR}/v1/sys/seal-status" >/dev/null 2>&1; then
-  echo "Vault недоступен. Сначала: task vault:up" >&2
+  echo "Vault недоступен. Сначала: docker compose up -d vault" >&2
   exit 1
 fi
 
@@ -49,6 +76,9 @@ if [ "$INITIALIZED" = "False" ]; then
   INIT_RESPONSE=$(curl --silent -X POST \
     -d '{"secret_shares": 1, "secret_threshold": 1}' \
     "${VAULT_ADDR}/v1/sys/init")
+  if fail_if_errors "$INIT_RESPONSE"; then
+    exit 1
+  fi
   echo "$INIT_RESPONSE" > "$STATE_FILE"
   chmod 600 "$STATE_FILE"
   echo "Сохранение unseal-key + root-token в $STATE_FILE"
@@ -60,7 +90,7 @@ else
   fi
 fi
 
-UNSEAL_KEY=$(python3 -c 'import sys,json;print(json.load(open(sys.argv[1]))["keys"][0])' "$STATE_FILE")
+UNSEAL_KEY=$(unseal_key_from_state)
 VAULT_TOKEN=$(python3 -c 'import sys,json;print(json.load(open(sys.argv[1]))["root_token"])' "$STATE_FILE")
 export VAULT_TOKEN
 

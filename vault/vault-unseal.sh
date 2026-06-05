@@ -18,7 +18,16 @@ if [ "$SEALED" = "False" ]; then
   exit 0
 fi
 
-UNSEAL_KEY=$(python3 -c 'import sys,json;print(json.load(open(sys.argv[1]))["keys"][0])' "$STATE_FILE")
+UNSEAL_KEY=$(python3 -c '
+import json
+import sys
+
+data = json.load(open(sys.argv[1]))
+keys = data.get("keys") or data.get("keys_base64") or data.get("unseal_keys_b64")
+if not keys:
+    raise SystemExit("Не нашёл unseal key в " + sys.argv[1])
+print(keys[0])
+' "$STATE_FILE")
 
 echo "==> Unseal Vault..."
 curl --silent -X PUT -d "{\"key\":\"${UNSEAL_KEY}\"}" \
