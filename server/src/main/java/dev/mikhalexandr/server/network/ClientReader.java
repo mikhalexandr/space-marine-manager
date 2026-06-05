@@ -1,5 +1,6 @@
 package dev.mikhalexandr.server.network;
 
+import dev.mikhalexandr.common.dto.event.ServerMessage;
 import dev.mikhalexandr.common.dto.request.CommandRequest;
 import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.common.protocol.FrameCodec;
@@ -24,6 +25,7 @@ final class ClientReader implements Runnable {
   private final Socket socket;
   private final ServerIdentity serverIdentity;
   private final CommandExecutor commandExecutor;
+  private final SessionHub sessionHub;
   private final ForkJoinPool processingPool;
   private final ForkJoinPool sendingPool;
 
@@ -31,11 +33,13 @@ final class ClientReader implements Runnable {
       Socket socket,
       ServerIdentity serverIdentity,
       CommandExecutor commandExecutor,
+      SessionHub sessionHub,
       ForkJoinPool processingPool,
       ForkJoinPool sendingPool) {
     this.socket = socket;
     this.serverIdentity = serverIdentity;
     this.commandExecutor = commandExecutor;
+    this.sessionHub = sessionHub;
     this.processingPool = processingPool;
     this.sendingPool = sendingPool;
   }
@@ -43,15 +47,21 @@ final class ClientReader implements Runnable {
   @Override
   public void run() {
     String remote = String.valueOf(socket.getRemoteSocketAddress());
+    ClientConnection connection = null;
     try {
       InputStream input = new BufferedInputStream(socket.getInputStream());
       OutputStream output = new BufferedOutputStream(socket.getOutputStream());
       SessionCipher cipher = ServerHandshake.perform(input, output, serverIdentity);
       LOGGER.info("Защищённая сессия установлена с {}", remote);
-      readLoop(new ClientConnection(socket, input, output, cipher, remote));
+      connection = new ClientConnection(socket, input, output, cipher, remote);
+      sessionHub.register(connection);
+      readLoop(connection);
     } catch (IOException e) {
       LOGGER.info("Соединение с {} завершено: {}", remote, e.getMessage());
     } finally {
+      if (connection != null) {
+        sessionHub.unregister(connection);
+      }
       closeQuietly(remote);
     }
   }
@@ -68,8 +78,8 @@ final class ClientReader implements Runnable {
       byte[] plaintext = connection.cipher().decrypt(encryptedFrame);
       CommandRequest request = deserializeRequest(plaintext);
       CommandResponse response = executeSafely(request);
-      byte[] encrypted = connection.cipher().encrypt(Serializer.serialize(response));
-      sendingPool.execute(() -> sendResponse(connection, encrypted));
+      ServerMessage message = ServerMessage.response(request.getRequestId(), response);
+      sendingPool.execute(() -> sendMessage(connection, message));
     } catch (IOException e) {
       LOGGER.warn(
           "Не удалось обработать запрос {}: {}", connection.remoteAddress(), e.getMessage());
@@ -86,9 +96,9 @@ final class ClientReader implements Runnable {
     }
   }
 
-  private static void sendResponse(ClientConnection connection, byte[] responsePayload) {
+  private static void sendMessage(ClientConnection connection, ServerMessage message) {
     try {
-      connection.writeFrame(responsePayload);
+      connection.send(message);
     } catch (IOException e) {
       LOGGER.warn("Не удалось отправить ответ {}: {}", connection.remoteAddress(), e.getMessage());
       connection.close();

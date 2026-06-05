@@ -73,6 +73,7 @@ public class ServerBootstrap {
             new ValidatingInterceptor(),
             new AuthenticatingInterceptor(authService));
     TcpServer tcpServer = new TcpServer(port, commandExecutor, identity);
+    collectionManager.setEventPublisher(tcpServer.eventPublisher());
     Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(tcpServer, database)));
     tcpServer.run();
   }

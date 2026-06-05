@@ -1,5 +1,6 @@
 package dev.mikhalexandr.server.network;
 
+import dev.mikhalexandr.server.managers.CollectionEventPublisher;
 import dev.mikhalexandr.server.managers.CommandExecutor;
 import dev.mikhalexandr.server.security.ServerIdentity;
 import java.io.IOException;
@@ -19,6 +20,7 @@ public final class TcpServer {
   private final ServerIdentity serverIdentity;
   private final ForkJoinPool processingPool;
   private final ForkJoinPool sendingPool;
+  private final SessionHub sessionHub = new SessionHub();
   private final AtomicLong connectionCounter = new AtomicLong();
   private volatile boolean running;
   private volatile ServerSocket serverSocket;
@@ -34,6 +36,10 @@ public final class TcpServer {
     this.serverIdentity = serverIdentity;
     this.processingPool = WorkerPools.newProcessingPool();
     this.sendingPool = WorkerPools.newSendingPool();
+  }
+
+  public CollectionEventPublisher eventPublisher() {
+    return sessionHub;
   }
 
   /** Запускает цикл приёма подключений */
@@ -80,7 +86,8 @@ public final class TcpServer {
   private void startReaderThread(Socket client) {
     LOGGER.debug("Новое подключение: {}", client.getRemoteSocketAddress());
     ClientReader reader =
-        new ClientReader(client, serverIdentity, commandExecutor, processingPool, sendingPool);
+        new ClientReader(
+            client, serverIdentity, commandExecutor, sessionHub, processingPool, sendingPool);
     Thread thread = new Thread(reader, "client-reader-" + connectionCounter.incrementAndGet());
     thread.setDaemon(true);
     thread.start();

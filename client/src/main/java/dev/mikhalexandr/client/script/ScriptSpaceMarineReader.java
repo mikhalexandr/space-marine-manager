@@ -1,4 +1,4 @@
-package dev.mikhalexandr.client.io;
+package dev.mikhalexandr.client.script;
 
 import dev.mikhalexandr.common.models.AstartesCategory;
 import dev.mikhalexandr.common.models.Chapter;
@@ -9,8 +9,8 @@ import dev.mikhalexandr.common.util.Validator;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 
-/** Читает поля SpaceMarine из консоли на стороне клиента. */
-public class InputHandler {
+/** Читает поля SpaceMarine из строк скрипта execute_script на стороне клиента. */
+public class ScriptSpaceMarineReader {
   private static final String PROMPT_PREFIX = "| ";
 
   /**
@@ -166,15 +166,15 @@ public class InputHandler {
     try {
       return scanner.nextLine();
     } catch (NoSuchElementException e) {
-      throw new InputReadException(
+      throw new ScriptReadException(
           String.format(
               "Недостаточно данных для заполнения SpaceMarine (ожидается поле: %s)", fieldName));
     }
   }
 
-  /** Ошибка чтения полей SpaceMarine из источника ввода. */
-  public static class InputReadException extends IllegalStateException {
-    public InputReadException(String message) {
+  /** Ошибка чтения полей SpaceMarine из скрипта. */
+  public static class ScriptReadException extends IllegalStateException {
+    public ScriptReadException(String message) {
       super(message);
     }
   }

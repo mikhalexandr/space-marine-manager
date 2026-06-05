@@ -1,5 +1,6 @@
 package dev.mikhalexandr.server.managers;
 
+import dev.mikhalexandr.common.dto.event.CollectionEvent;
 import dev.mikhalexandr.common.models.AstartesCategory;
 import dev.mikhalexandr.common.models.SpaceMarine;
 import java.time.ZoneId;
@@ -21,6 +22,15 @@ public class CollectionManager {
   private final ReadWriteLock lock = new ReentrantReadWriteLock();
   private final LinkedList<SpaceMarine> collection = new LinkedList<>();
   private final Date initializationDate = new Date();
+  private volatile CollectionEventPublisher eventPublisher = CollectionManager::ignoreEvent;
+
+  public void setEventPublisher(CollectionEventPublisher publisher) {
+    this.eventPublisher = publisher == null ? CollectionManager::ignoreEvent : publisher;
+  }
+
+  private static void ignoreEvent(CollectionEvent event) {
+    // no-op
+  }
 
   /**
    * Полностью заменяет коллекцию в памяти
@@ -49,6 +59,7 @@ public class CollectionManager {
     } finally {
       lock.writeLock().unlock();
     }
+    eventPublisher.publish(CollectionEvent.added(marine));
   }
 
   /**
@@ -71,6 +82,7 @@ public class CollectionManager {
     } finally {
       lock.writeLock().unlock();
     }
+    eventPublisher.publish(CollectionEvent.updated(newMarine));
   }
 
   /**
@@ -79,11 +91,15 @@ public class CollectionManager {
    * @param id идентификатор элемента
    */
   public void removeById(int id) {
+    boolean removed;
     lock.writeLock().lock();
     try {
-      collection.removeIf(marine -> marine.getId() == id);
+      removed = collection.removeIf(marine -> marine.getId() == id);
     } finally {
       lock.writeLock().unlock();
+    }
+    if (removed) {
+      eventPublisher.publish(CollectionEvent.removed(List.of((long) id)));
     }
   }
 
@@ -93,11 +109,22 @@ public class CollectionManager {
    * @param owner логин пользователя-владельца
    */
   public void removeByOwner(String owner) {
+    List<Long> removedIds = new ArrayList<>();
     lock.writeLock().lock();
     try {
-      collection.removeIf(marine -> owner.equals(marine.getOwner()));
+      collection.removeIf(
+          marine -> {
+            if (owner.equals(marine.getOwner())) {
+              removedIds.add((long) marine.getId());
+              return true;
+            }
+            return false;
+          });
     } finally {
       lock.writeLock().unlock();
+    }
+    if (!removedIds.isEmpty()) {
+      eventPublisher.publish(CollectionEvent.removed(removedIds));
     }
   }
 

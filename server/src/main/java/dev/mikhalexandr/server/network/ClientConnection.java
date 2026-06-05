@@ -1,7 +1,9 @@
 package dev.mikhalexandr.server.network;
 
+import dev.mikhalexandr.common.dto.event.ServerMessage;
 import dev.mikhalexandr.common.protocol.FrameCodec;
 import dev.mikhalexandr.common.security.crypto.SessionCipher;
+import dev.mikhalexandr.common.util.Serializer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -49,15 +51,10 @@ final class ClientConnection {
     return !socket.isClosed();
   }
 
-  /**
-   * Отправка пейлода клиенту
-   *
-   * @param payload сериализованные данные ответа без префикса длины
-   * @throws IOException если запись не удалась
-   */
-  void writeFrame(byte[] payload) throws IOException {
+  void send(ServerMessage message) throws IOException {
+    byte[] plaintext = Serializer.serialize(message);
     synchronized (writeLock) {
-      FrameCodec.writeFrame(output, payload);
+      FrameCodec.writeFrame(output, cipher.encrypt(plaintext));
     }
   }
 

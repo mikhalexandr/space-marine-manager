@@ -1,16 +1,27 @@
 plugins {
     id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
 }
 
 dependencies {
     implementation project(':common')
+    implementation 'com.github.mikhalexandr:programming-lab8-gui:1.1.7'
     implementation 'org.slf4j:slf4j-api:2.0.13'
     implementation 'ch.qos.logback:logback-classic:1.5.25'
     implementation 'ch.qos.logback:logback-core:1.5.25'
 }
 
+javafx {
+    version = '21.0.4'
+    modules = ['javafx.controls']
+}
+
 application {
-    mainClass = 'dev.mikhalexandr.client.Client'
+    mainClass = 'dev.mikhalexandr.client.gui.Launcher'
+    applicationDefaultJvmArgs = [
+        '--enable-native-access=ALL-UNNAMED',
+        '--sun-misc-unsafe-memory-access=allow'
+    ]
 }
 
 tasks.named('run') {
