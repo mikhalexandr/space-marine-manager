@@ -7,24 +7,14 @@ import dev.mikhalexandr.server.managers.CollectionManager;
 import java.util.Comparator;
 import java.util.List;
 
-/** Команда {@code show}: выводит все элементы коллекции */
 public class ShowCommand extends Command {
   private final CollectionManager collectionManager;
 
-  /**
-   * @param collectionManager менеджер коллекции в памяти
-   */
   public ShowCommand(CollectionManager collectionManager) {
     super("show", "вывести все элементы коллекции");
     this.collectionManager = collectionManager;
   }
 
-  /**
-   * Печатает все элементы коллекции из памяти, отсортированные по id
-   *
-   * @param request DTO-запрос команды
-   * @return DTO-ответ выполнения
-   */
   @Override
   public CommandResponse execute(CommandRequest request) {
     List<SpaceMarine> sortedCollection =

@@ -9,29 +9,16 @@ import dev.mikhalexandr.server.db.SpaceMarineRepository;
 import dev.mikhalexandr.server.exceptions.CommandExecutionException;
 import dev.mikhalexandr.server.managers.CollectionManager;
 
-/** Команда {@code remove_by_id}: удаляет собственный элемент коллекции по id. */
 public class RemoveByIdCommand extends Command {
   private final CollectionManager collectionManager;
   private final SpaceMarineRepository repository;
 
-  /**
-   * @param collectionManager менеджер коллекции в памяти
-   * @param repository репозиторий коллекции в БД
-   */
   public RemoveByIdCommand(CollectionManager collectionManager, SpaceMarineRepository repository) {
     super("remove_by_id", "<id>", "удалить свой элемент по id");
     this.collectionManager = collectionManager;
     this.repository = repository;
   }
 
-  /**
-   * Удаляет элемент из БД и памяти, если он принадлежит текущему пользователю
-   *
-   * @param request DTO-запрос команды
-   * @return DTO-ответ выполнения
-   * @throws CommandExecutionException если id некорректен или объект принадлежит другому
-   *     пользователю
-   */
   @Override
   public CommandResponse execute(CommandRequest request) throws CommandExecutionException {
     int id = resolveId(request);

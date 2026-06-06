@@ -8,25 +8,14 @@ import dev.mikhalexandr.common.models.AstartesCategory;
 import dev.mikhalexandr.server.exceptions.CommandExecutionException;
 import dev.mikhalexandr.server.managers.CollectionManager;
 
-/** Команда {@code count_by_category}: выводит количество элементов заданной категории. */
 public class CountByCategoryCommand extends Command {
   private final CollectionManager collectionManager;
 
-  /**
-   * @param collectionManager менеджер коллекции
-   */
   public CountByCategoryCommand(CollectionManager collectionManager) {
     super("count_by_category", "<category>", "вывести количество элементов с заданной категорией");
     this.collectionManager = collectionManager;
   }
 
-  /**
-   * Подсчитывает элементы с указанной категорией.
-   *
-   * @param request DTO-запрос команды
-   * @return DTO-ответ выполнения
-   * @throws CommandExecutionException если категория не передана или некорректна
-   */
   @Override
   public CommandResponse execute(CommandRequest request) throws CommandExecutionException {
     AstartesCategory category = resolveCategory(request);

@@ -7,7 +7,6 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.UUID;
 
-/** Запрос на выполнение команды */
 public final class CommandRequest implements Serializable {
   @Serial private static final long serialVersionUID = 3L;
 
@@ -16,14 +15,13 @@ public final class CommandRequest implements Serializable {
   private final CommandPayload payload;
   private UserCredentials credentials;
 
-  /**
-   * Создает объектный запрос (тип + payload)
-   *
-   * @param commandType тип команды
-   * @param payload объект аргументов
-   */
   public CommandRequest(CommandType commandType, CommandPayload payload) {
-    this.requestId = UUID.randomUUID().toString();
+    this(commandType, payload, UUID.randomUUID().toString());
+  }
+
+  public CommandRequest(CommandType commandType, CommandPayload payload, String requestId) {
+    this.requestId =
+        requestId == null || requestId.isBlank() ? UUID.randomUUID().toString() : requestId;
     this.commandType = commandType == null ? CommandType.UNKNOWN : commandType;
     this.payload = payload == null ? NoArgsPayload.INSTANCE : payload;
   }
@@ -32,32 +30,18 @@ public final class CommandRequest implements Serializable {
     return requestId;
   }
 
-  /**
-   * @return тип команды
-   */
   public CommandType getCommandType() {
     return commandType;
   }
 
-  /**
-   * @return объектный payload
-   */
   public CommandPayload getPayload() {
     return payload;
   }
 
-  /**
-   * @return учётные данные пользователя или null, если не заданы
-   */
   public UserCredentials getCredentials() {
     return credentials;
   }
 
-  /**
-   * Прикрепляет учётные данные к запросу
-   *
-   * @param credentials учётные данные пользователя
-   */
   public void setCredentials(UserCredentials credentials) {
     this.credentials = credentials;
   }

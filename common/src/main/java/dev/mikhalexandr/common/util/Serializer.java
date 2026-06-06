@@ -6,16 +6,11 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
-/** Утилиты Java-сериализации для DTO обмена между клиентом и сервером. */
 public final class Serializer {
   private Serializer() {
     throw new UnsupportedOperationException("Это утилитарный класс, его нельзя инстанцировать");
   }
 
-  /**
-   * @param value сериализуемый объект
-   * @return сериализованный массив байтов
-   */
   public static byte[] serialize(Object value) throws IOException {
     if (value == null) {
       throw new IllegalArgumentException("value не может быть null");
@@ -29,11 +24,6 @@ public final class Serializer {
     }
   }
 
-  /**
-   * @param payload сериализованные байты
-   * @param expectedType ожидаемый тип объекта
-   * @return десериализованный объект ожидаемого типа
-   */
   public static <T> T deserialize(byte[] payload, Class<T> expectedType)
       throws IOException, ClassNotFoundException {
     if (payload == null) {

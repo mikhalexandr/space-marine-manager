@@ -1,4 +1,4 @@
-package dev.mikhalexandr.client.gui;
+package dev.mikhalexandr.client.gateway;
 
 import dev.mikhalexandr.client.commands.CommandRequestParser;
 import dev.mikhalexandr.client.network.TcpClient;
@@ -17,26 +17,31 @@ import dev.mikhalexandr.common.dto.request.payload.NoArgsPayload;
 import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.common.models.AstartesCategory;
 import dev.mikhalexandr.common.models.SpaceMarine;
+import dev.mikhalexandr.common.util.Serializer;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Scanner;
 import programming.lab8.gui.api.CollectionGateway;
 import programming.lab8.gui.api.CollectionListener;
 import programming.lab8.gui.api.GatewayResult;
 
-/** Мост между гуи и серваком */
 public final class SpaceMarineGateway implements CollectionGateway<SpaceMarine> {
   private static final int MAX_SCRIPT_DEPTH = 3;
 
   private final TcpClient tcpClient;
   private final CommandRequestParser parser = new CommandRequestParser();
   private final ScriptSpaceMarineReader scriptSpaceMarineReader = new ScriptSpaceMarineReader();
+
+  private final IdempotencyKeyCache idempotencyKeys = new IdempotencyKeyCache();
 
   public SpaceMarineGateway(TcpClient tcpClient) {
     this.tcpClient = tcpClient;
@@ -130,7 +135,27 @@ public final class SpaceMarineGateway implements CollectionGateway<SpaceMarine> 
   }
 
   private CommandResponse send(CommandType type, CommandPayload payload) throws Exception {
-    return tcpClient.send(new CommandRequest(type, payload));
+    if (!type.isMutating()) {
+      return tcpClient.send(new CommandRequest(type, payload));
+    }
+    String opKey = operationKey(type, payload);
+    String requestId = idempotencyKeys.requestIdFor(opKey);
+    CommandResponse response = tcpClient.send(new CommandRequest(type, payload, requestId));
+    idempotencyKeys.resolve(opKey);
+    return response;
+  }
+
+  private static String operationKey(CommandType type, CommandPayload payload) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      digest.update(type.name().getBytes(StandardCharsets.UTF_8));
+      if (payload != null) {
+        digest.update(Serializer.serialize(payload));
+      }
+      return HexFormat.of().formatHex(digest.digest());
+    } catch (NoSuchAlgorithmException | IOException e) {
+      throw new IllegalStateException("Не удалось вычислить ключ операции идемпотентности", e);
+    }
   }
 
   public static GatewayResult toResult(CommandResponse response) {

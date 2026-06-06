@@ -13,18 +13,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Хранит зарегистрированные команды и исполняет их по строковому вводу. */
 public class CommandManager implements CommandExecutor {
   private static final int HISTORY_SIZE = 5;
   private final Map<String, CommandContract> commands = new LinkedHashMap<>();
   private final List<String> history = new ArrayList<>();
   private final Object historyLock = new Object();
 
-  /**
-   * Регистрирует новую команду.
-   *
-   * @param command экземпляр команды
-   */
   public void register(CommandContract command) {
     if (commands.containsKey(command.getName())) {
       throw new IllegalStateException(
@@ -33,12 +27,6 @@ public class CommandManager implements CommandExecutor {
     commands.put(command.getName(), command);
   }
 
-  /**
-   * Выполняет команду из запроса и возвращает ответ.
-   *
-   * @param request запрос на выполнение команды
-   * @return результат выполнения
-   */
   @Override
   public CommandResponse execute(CommandRequest request) {
     CommandResponse result;
@@ -92,12 +80,6 @@ public class CommandManager implements CommandExecutor {
     return "<unknown>";
   }
 
-  /**
-   * Добавляет название команды в историю
-   *
-   * @param name имя выполненной команды
-   * @param args строка аргументов выполненной команды
-   */
   public void addToHistory(String name, String args) {
     String info = name + " " + args;
     synchronized (historyLock) {
@@ -108,18 +90,12 @@ public class CommandManager implements CommandExecutor {
     }
   }
 
-  /**
-   * @return неизменяемая копия списка недавно выполненных команд
-   */
   public List<String> getHistory() {
     synchronized (historyLock) {
       return List.copyOf(history);
     }
   }
 
-  /**
-   * @return карта зарегистрированных команд
-   */
   public Map<String, CommandContract> getCommands() {
     return Collections.unmodifiableMap(commands);
   }

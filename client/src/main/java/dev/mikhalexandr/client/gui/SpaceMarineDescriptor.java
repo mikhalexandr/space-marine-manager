@@ -8,7 +8,6 @@ import programming.lab8.gui.api.FieldDescriptor;
 import programming.lab8.gui.api.FieldType;
 import programming.lab8.gui.api.ObjectDescriptor;
 
-/** Описывает SpaceMarine для гуи */
 public final class SpaceMarineDescriptor implements ObjectDescriptor<SpaceMarine> {
   private static final double MIN_RADIUS = 8.0;
   private static final double MAX_RADIUS = 60.0;

@@ -28,15 +28,8 @@ public class CollectionManager {
     this.eventPublisher = publisher == null ? CollectionManager::ignoreEvent : publisher;
   }
 
-  private static void ignoreEvent(CollectionEvent event) {
-    // no-op
-  }
+  private static void ignoreEvent(CollectionEvent event) {}
 
-  /**
-   * Полностью заменяет коллекцию в памяти
-   *
-   * @param marines загруженные из бд элементы
-   */
   public void loadAll(List<SpaceMarine> marines) {
     lock.writeLock().lock();
     try {
@@ -47,11 +40,6 @@ public class CollectionManager {
     }
   }
 
-  /**
-   * Добавляет элемент в коллекцию в памяти. Вызывается только после успешной вставки в бд
-   *
-   * @param marine элемент с уже проставленными id и датой создания
-   */
   public void add(SpaceMarine marine) {
     lock.writeLock().lock();
     try {
@@ -62,12 +50,6 @@ public class CollectionManager {
     eventPublisher.publish(CollectionEvent.added(marine));
   }
 
-  /**
-   * Заменяет элемент по id, сохраняя id, дату создания и владельца
-   *
-   * @param id идентификатор существующего элемента
-   * @param newMarine новое значение
-   */
   public void update(int id, SpaceMarine newMarine) {
     lock.writeLock().lock();
     try {
@@ -85,11 +67,6 @@ public class CollectionManager {
     eventPublisher.publish(CollectionEvent.updated(newMarine));
   }
 
-  /**
-   * Удаляет элемент по идентификатору
-   *
-   * @param id идентификатор элемента
-   */
   public void removeById(int id) {
     boolean removed;
     lock.writeLock().lock();
@@ -103,11 +80,6 @@ public class CollectionManager {
     }
   }
 
-  /**
-   * Удаляет все элементы указанного владельца.
-   *
-   * @param owner логин пользователя-владельца
-   */
   public void removeByOwner(String owner) {
     List<Long> removedIds = new ArrayList<>();
     lock.writeLock().lock();
@@ -128,10 +100,6 @@ public class CollectionManager {
     }
   }
 
-  /**
-   * @param id идентификатор элемента
-   * @return найденный элемент или null
-   */
   public SpaceMarine getById(int id) {
     lock.readLock().lock();
     try {
@@ -141,9 +109,6 @@ public class CollectionManager {
     }
   }
 
-  /**
-   * @return первый элемент коллекции или null, если коллекция пуста
-   */
   public SpaceMarine head() {
     lock.readLock().lock();
     try {
@@ -153,10 +118,6 @@ public class CollectionManager {
     }
   }
 
-  /**
-   * @param candidate кандидат на добавление
-   * @return true, если коллекция пуста или кандидат меньше минимального элемента
-   */
   public boolean isLessThanMin(SpaceMarine candidate) {
     lock.readLock().lock();
     try {
@@ -166,9 +127,6 @@ public class CollectionManager {
     }
   }
 
-  /**
-   * @return сумма поля health по всем элементам
-   */
   public float sumOfHealth() {
     lock.readLock().lock();
     try {
@@ -178,9 +136,6 @@ public class CollectionManager {
     }
   }
 
-  /**
-   * @return элемент с максимальным chapter или null, если подходящих нет
-   */
   public SpaceMarine maxByChapter() {
     lock.readLock().lock();
     try {
@@ -193,10 +148,6 @@ public class CollectionManager {
     }
   }
 
-  /**
-   * @param category категория для фильтрации
-   * @return число элементов этой категории
-   */
   public long countByCategory(AstartesCategory category) {
     lock.readLock().lock();
     try {
@@ -206,9 +157,6 @@ public class CollectionManager {
     }
   }
 
-  /**
-   * @return копия коллекции на момент вызова
-   */
   public List<SpaceMarine> snapshot() {
     lock.readLock().lock();
     try {
@@ -218,9 +166,6 @@ public class CollectionManager {
     }
   }
 
-  /**
-   * @return количество элементов в коллекции
-   */
   public int size() {
     lock.readLock().lock();
     try {
@@ -230,16 +175,10 @@ public class CollectionManager {
     }
   }
 
-  /**
-   * @return тип внутренней структуры коллекции
-   */
   public String getType() {
     return collection.getClass().getSimpleName();
   }
 
-  /**
-   * @return дата инициализации менеджера в формате HH:mm:ss dd.MM.yyyy
-   */
   public String getInitializationDateFormatted() {
     return initializationDate.toInstant().atZone(ZoneId.systemDefault()).format(DATE_FORMATTER);
   }

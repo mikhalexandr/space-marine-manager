@@ -3,7 +3,6 @@ package dev.mikhalexandr.server;
 import dev.mikhalexandr.common.util.Validator;
 import dev.mikhalexandr.server.bootstrap.ServerBootstrap;
 
-/** Точка входа серверного приложения */
 public final class Server {
   private static final int DEFAULT_PORT = 5050;
   private static final int MIN_PORT = 1;
@@ -13,11 +12,6 @@ public final class Server {
     throw new UnsupportedOperationException("Это утилитарный класс, его нельзя инстанцировать");
   }
 
-  /**
-   * Запускает однопоточный приём подключений и многопоточную обработку запросов
-   *
-   * @param args порт, если надо
-   */
   public static void main(String[] args) {
     int port;
     try {

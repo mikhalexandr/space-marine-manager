@@ -6,18 +6,6 @@ import java.security.GeneralSecurityException;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
-/**
- * HKDF (HMAC-based Extract-and-Expand Key Derivation Function), RFC 5869
- *
- * <p>Двухступенчатый KDF:
- *
- * <ol>
- *   <li>{@code Extract(salt, ikm) -> prk} - собирает входной материал в равномерный псевдослучайный
- *       ключ
- *   <li>{@code Expand(prk, info, length) -> okm} - растягивает PRK в нужное количество байт,
- *       привязанных к контексту {@code info}
- * </ol>
- */
 public final class Hkdf {
   private static final String HMAC_ALGORITHM = "HmacSHA256";
   private static final int HASH_LENGTH = 32;
@@ -27,16 +15,6 @@ public final class Hkdf {
     throw new UnsupportedOperationException("Это утилитарный класс, его нельзя инстанцировать");
   }
 
-  /**
-   * Полная процедура HKDF: Extract + Expand за один вызов
-   *
-   * @param salt соль; может быть {@code null} или пустым массивом - тогда внутри подставится
-   *     32-байтный нулевой массив, как требует RFC 5869
-   * @param ikm входной ключевой материал (общий секрет ECDH)
-   * @param info контекстная метка (c2s, s2c)
-   * @param length желаемая длина выхода в байтах (тут для AES-256 это 256 бит = 32 байта)
-   * @return {@code length} байт выходного ключевого материала
-   */
   public static byte[] derive(byte[] salt, byte[] ikm, byte[] info, int length) throws IOException {
     return expand(extract(salt, ikm), info, length);
   }

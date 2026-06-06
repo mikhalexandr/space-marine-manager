@@ -6,30 +6,24 @@ import dev.mikhalexandr.server.security.ServerIdentity;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Многопоточный блокирующий TCP-сервер */
 public final class TcpServer {
   private static final Logger LOGGER = LoggerFactory.getLogger(TcpServer.class);
 
   private final int port;
   private final CommandExecutor commandExecutor;
   private final ServerIdentity serverIdentity;
-  private final ForkJoinPool processingPool;
-  private final ForkJoinPool sendingPool;
+  private final ExecutorService processingPool;
+  private final ExecutorService sendingPool;
   private final SessionHub sessionHub = new SessionHub();
   private final AtomicLong connectionCounter = new AtomicLong();
   private volatile boolean running;
   private volatile ServerSocket serverSocket;
 
-  /**
-   * @param port порт
-   * @param commandExecutor исполнитель команд
-   * @param serverIdentity серверная идентичность для рукопожатия
-   */
   public TcpServer(int port, CommandExecutor commandExecutor, ServerIdentity serverIdentity) {
     this.port = port;
     this.commandExecutor = commandExecutor;
@@ -42,7 +36,6 @@ public final class TcpServer {
     return sessionHub;
   }
 
-  /** Запускает цикл приёма подключений */
   public void run() {
     running = true;
     try (ServerSocket socket = new ServerSocket(port)) {
@@ -58,7 +51,6 @@ public final class TcpServer {
     }
   }
 
-  /** Останавливает сервер: закрывает серверный сокет, чем прерывает цикл приёма подключений */
   public void stop() {
     running = false;
     ServerSocket socket = serverSocket;

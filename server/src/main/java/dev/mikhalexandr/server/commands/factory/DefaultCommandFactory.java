@@ -20,15 +20,11 @@ import dev.mikhalexandr.server.managers.CommandManager;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Стандартная фабрика команд сервера. */
 public class DefaultCommandFactory implements CommandFactory {
   private final CommandManager commandManager;
   private final CollectionManager collectionManager;
   private final SpaceMarineRepository repository;
 
-  /**
-   * @param dependencies зависимости, необходимые для создания команд
-   */
   public DefaultCommandFactory(CommandFactoryDependencies dependencies) {
     this.commandManager = dependencies.commandManager();
     this.collectionManager = dependencies.collectionManager();

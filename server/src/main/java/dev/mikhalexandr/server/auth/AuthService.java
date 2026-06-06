@@ -7,25 +7,15 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Регистрация и проверка учётных данных пользователей. Пароли хранятся в виде MD2-хэшей */
 public final class AuthService {
   private static final Logger LOGGER = LoggerFactory.getLogger(AuthService.class);
 
   private final UserRepository userRepository;
 
-  /**
-   * @param userRepository репозиторий пользователей
-   */
   public AuthService(UserRepository userRepository) {
     this.userRepository = userRepository;
   }
 
-  /**
-   * Регистрирует нового пользователя
-   *
-   * @param credentials логин и пароль
-   * @return результат регистрации
-   */
   public CommandResponse register(UserCredentials credentials) {
     String validationError = validate(credentials);
     if (validationError != null) {
@@ -40,12 +30,6 @@ public final class AuthService {
     return CommandResponse.success("Регистрация успешна. Добро пожаловать, " + login + "!");
   }
 
-  /**
-   * Проверяет учётные данные при явном входе
-   *
-   * @param credentials логин и пароль
-   * @return результат входа
-   */
   public CommandResponse login(UserCredentials credentials) {
     if (isAuthenticated(credentials)) {
       return CommandResponse.success(
@@ -54,12 +38,6 @@ public final class AuthService {
     return CommandResponse.error("Неверный логин или пароль");
   }
 
-  /**
-   * Проверяет, что переданные учётные данные принадлежат существующему пользователю
-   *
-   * @param credentials логин и пароль
-   * @return true, если пользователь аутентифицирован
-   */
   public boolean isAuthenticated(UserCredentials credentials) {
     if (validate(credentials) != null) {
       return false;

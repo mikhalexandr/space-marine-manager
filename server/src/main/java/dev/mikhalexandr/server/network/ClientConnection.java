@@ -11,7 +11,6 @@ import java.net.Socket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Состояние одного установленного TCP-клиента после успешного хендшейка */
 final class ClientConnection {
   private static final Logger LOGGER = LoggerFactory.getLogger(ClientConnection.class);
 

@@ -26,7 +26,6 @@ import org.jooq.impl.SQLDataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Реализация {@link SpaceMarineRepository} */
 public final class JooqSpaceMarineRepository implements SpaceMarineRepository {
   private static final Logger LOGGER = LoggerFactory.getLogger(JooqSpaceMarineRepository.class);
 

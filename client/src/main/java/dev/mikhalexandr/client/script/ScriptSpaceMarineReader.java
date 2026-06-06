@@ -9,15 +9,9 @@ import dev.mikhalexandr.common.util.Validator;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 
-/** Читает поля SpaceMarine из строк скрипта execute_script на стороне клиента. */
 public class ScriptSpaceMarineReader {
   private static final String PROMPT_PREFIX = "| ";
 
-  /**
-   * @param scanner источник пользовательского ввода
-   * @param showPrompts показывать ли подсказки в процессе ввода
-   * @return валидный объект SpaceMarine
-   */
   public SpaceMarine read(Scanner scanner, boolean showPrompts) {
     String name = readName(scanner, showPrompts);
     double x = readDouble(scanner, showPrompts);
@@ -73,7 +67,6 @@ public class ScriptSpaceMarineReader {
           return value;
         }
       } catch (NumberFormatException ignored) {
-        // Сообщение об ошибке печатается ниже
       }
       System.out.println("| Ошибка: здоровье должно быть числом больше 0");
     }
@@ -107,7 +100,6 @@ public class ScriptSpaceMarineReader {
           return values[index];
         }
       } catch (NumberFormatException ignored) {
-        // Сообщение об ошибке печатается ниже
       }
       System.out.println("| Ошибка: введите корректный номер");
     }
@@ -142,7 +134,6 @@ public class ScriptSpaceMarineReader {
         return index;
       }
     } catch (NumberFormatException ignored) {
-      // Сообщение об ошибке печатается ниже
     }
     System.out.printf("| Ошибка: введите номер от 1 до %d%n", length);
     return -1;
@@ -172,7 +163,6 @@ public class ScriptSpaceMarineReader {
     }
   }
 
-  /** Ошибка чтения полей SpaceMarine из скрипта. */
   public static class ScriptReadException extends IllegalStateException {
     public ScriptReadException(String message) {
       super(message);

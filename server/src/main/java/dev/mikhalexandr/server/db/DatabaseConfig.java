@@ -2,7 +2,6 @@ package dev.mikhalexandr.server.db;
 
 import dev.mikhalexandr.common.util.Env;
 
-/** Конфигурация подключения к постгре */
 public final class DatabaseConfig {
   private static final String PROFILE_HELIOS = "helios";
   private static final String PROFILE_DOCKER = "docker";
@@ -31,11 +30,6 @@ public final class DatabaseConfig {
     this.password = password;
   }
 
-  /**
-   * Собирает конфигурацию из энва
-   *
-   * @return готовая конфигурация подключения
-   */
   public static DatabaseConfig fromEnv() {
     String profile = Env.orDefault(ENV_PROFILE, DEFAULT_PROFILE).trim().toLowerCase();
     String url = Env.orDefault(ENV_URL, defaultUrl(profile));
@@ -74,30 +68,18 @@ public final class DatabaseConfig {
     }
   }
 
-  /**
-   * @return JDBC URL
-   */
   public String url() {
     return url;
   }
 
-  /**
-   * @return имя пользователя бдхи
-   */
   public String user() {
     return user;
   }
 
-  /**
-   * @return пароль пользователя бдхи
-   */
   public String password() {
     return password;
   }
 
-  /**
-   * @return краткое описание подключения без пароля, для логов четких
-   */
   public String describe() {
     return String.format("profile=%s, url=%s, user=%s", profile, url, user);
   }

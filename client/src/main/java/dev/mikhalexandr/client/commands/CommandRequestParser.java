@@ -10,12 +10,7 @@ import dev.mikhalexandr.common.models.AstartesCategory;
 import dev.mikhalexandr.common.util.Validator;
 import java.util.Arrays;
 
-/** Преобразует пользовательский ввод клиента в объектный CommandRequest. */
 public class CommandRequestParser {
-  /**
-   * @param rawCommand исходная строка из консоли или скрипта
-   * @return объектный запрос или null для пустого ввода
-   */
   public CommandRequest parse(String rawCommand) {
     if (!Validator.isValidString(rawCommand)) {
       return null;

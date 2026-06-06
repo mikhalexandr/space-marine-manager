@@ -3,53 +3,48 @@ package dev.mikhalexandr.common.dto.request;
 import java.io.Serializable;
 import java.util.Arrays;
 
-/** Типы команд, доступных в системе */
 public enum CommandType implements Serializable {
-  HELP("help", true),
-  INFO("info", true),
-  SHOW("show", true),
-  ADD("add", true),
-  UPDATE("update", true),
-  REMOVE_BY_ID("remove_by_id", true),
-  CLEAR("clear", true),
-  EXECUTE_SCRIPT("execute_script", true),
-  EXIT("exit", false),
-  HEAD("head", true),
-  ADD_IF_MIN("add_if_min", true),
-  SUM_OF_HEALTH("sum_of_health", true),
-  MAX_BY_CHAPTER("max_by_chapter", true),
-  COUNT_BY_CATEGORY("count_by_category", true),
-  HISTORY("history", true),
-  REGISTER("register", false),
-  LOGIN("login", false),
-  UNKNOWN("unknown", false);
+  HELP("help", true, false),
+  INFO("info", true, false),
+  SHOW("show", true, false),
+  ADD("add", true, true),
+  UPDATE("update", true, true),
+  REMOVE_BY_ID("remove_by_id", true, true),
+  CLEAR("clear", true, true),
+  EXECUTE_SCRIPT("execute_script", true, false),
+  EXIT("exit", false, false),
+  HEAD("head", true, false),
+  ADD_IF_MIN("add_if_min", true, true),
+  SUM_OF_HEALTH("sum_of_health", true, false),
+  MAX_BY_CHAPTER("max_by_chapter", true, false),
+  COUNT_BY_CATEGORY("count_by_category", true, false),
+  HISTORY("history", true, false),
+  REGISTER("register", false, false),
+  LOGIN("login", false, false),
+  UNKNOWN("unknown", false, false);
 
   private final String wireName;
   private final boolean serverTransmittable;
+  private final boolean mutating;
 
-  CommandType(String wireName, boolean serverTransmittable) {
+  CommandType(String wireName, boolean serverTransmittable, boolean mutating) {
     this.wireName = wireName;
     this.serverTransmittable = serverTransmittable;
+    this.mutating = mutating;
   }
 
-  /**
-   * @return строковое имя команды в транспортном протоколе
-   */
   public String getWireName() {
     return wireName;
   }
 
-  /**
-   * @return можно ли отправлять команду на сервер из клиента
-   */
   public boolean isServerTransmittable() {
     return serverTransmittable;
   }
 
-  /**
-   * @param commandName строковое имя команды
-   * @return найденный тип или UNKNOWN
-   */
+  public boolean isMutating() {
+    return mutating;
+  }
+
   public static CommandType fromWireName(String commandName) {
     if (commandName == null || commandName.isBlank()) {
       return UNKNOWN;

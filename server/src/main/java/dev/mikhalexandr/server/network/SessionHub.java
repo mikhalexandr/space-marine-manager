@@ -9,10 +9,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Так называемый реестр активных клиентских соединений и рассылка серверных событий коллекции
- * (push)
- */
 final class SessionHub implements CollectionEventPublisher {
   private static final Logger LOGGER = LoggerFactory.getLogger(SessionHub.class);
 

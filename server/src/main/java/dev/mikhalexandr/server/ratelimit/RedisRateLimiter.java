@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 
-/** Лимитер на Redis */
 public final class RedisRateLimiter implements RateLimiter, AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(RedisRateLimiter.class);
   private static final String KEY_PREFIX = "ratelimit:";

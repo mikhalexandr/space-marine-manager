@@ -5,7 +5,6 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
 
-/** Координаты космодесантника. */
 public class Coordinates implements Serializable {
   @Serial private static final long serialVersionUID = 1L;
 
@@ -15,10 +14,6 @@ public class Coordinates implements Serializable {
   private final double x;
   private final long y;
 
-  /**
-   * @param x координата X (должна быть больше -121)
-   * @param y координата Y (должна быть больше -184)
-   */
   public Coordinates(double x, long y) {
     Validator.validateGreaterThan(x, MIN_X, "Coordinates.x");
     Validator.validateGreaterThan(y, MIN_Y, "Coordinates.y");
@@ -26,16 +21,10 @@ public class Coordinates implements Serializable {
     this.y = y;
   }
 
-  /**
-   * @return значение координаты X
-   */
   public double getX() {
     return x;
   }
 
-  /**
-   * @return значение координаты Y
-   */
   public long getY() {
     return y;
   }

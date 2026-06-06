@@ -26,23 +26,6 @@ import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * HTTP-клиент к HashiCorp Vault PKI engine
- *
- * <p>Логика "правильного" CSR-flow:
- *
- * <ol>
- *   <li>Сервер сам генерит RSA-2048 пару (приватный ключ остаётся локально, никогда не передаётся)
- *   <li>Строит PKCS#10 CSR через Bouncy Castle (Java JDK не умеет CSR из коробки)
- *   <li>Отправляет CSR в Vault: {@code POST /v1/pki/sign/{role}}
- *   <li>Vault подписывает CSR своим ca.key (который у Vault внутри, наружу не уезжает)
- *   <li>Возвращает PEM-сертификат, который мы парсим и используем
- * </ol>
- *
- * <p>Серверный приватный ключ существует только в памяти процесса; на диск не пишется.
- * Аутентификация в Vault - через AppRole (короткоживущий токен с узкой политикой) или прямым
- * токеном для dev-режима.
- */
 public final class VaultPkiClient {
   public static final int CTO = 100;
   private static final Logger LOGGER = LoggerFactory.getLogger(VaultPkiClient.class);
@@ -64,15 +47,10 @@ public final class VaultPkiClient {
         HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS)).build();
   }
 
-  /** Создаёт клиент, который ходит во Vault с готовым токеном (dev-режим) */
   public static VaultPkiClient withToken(String vaultUrl, String vaultToken, String pkiRole) {
     return new VaultPkiClient(vaultUrl, vaultToken, pkiRole);
   }
 
-  /**
-   * Создаёт клиент, который сам логинится в Vault через AppRole и получает узкий токен с политикой
-   * server-policy
-   */
   public static VaultPkiClient withAppRole(
       String vaultUrl, String roleId, String secretId, String pkiRole) throws IOException {
     String url = stripTrailingSlash(vaultUrl);
@@ -113,12 +91,6 @@ public final class VaultPkiClient {
     }
   }
 
-  /**
-   * Полный CSR-flow: генерит RSA-пару, строит CSR, шлёт во Vault, возвращает идентичность
-   *
-   * @param commonName CN сертификата
-   * @return ServerIdentity с приватным ключом и подписанным сертификатом
-   */
   public ServerIdentity provisionIdentity(String commonName) throws IOException {
     LOGGER.info(
         "Vault PKI: запрашиваю серт для CN={} через {}/v1/pki/sign/{}",

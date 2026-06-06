@@ -23,15 +23,6 @@ final class ServerHandshake {
     throw new UnsupportedOperationException("Это утилитарный класс, его нельзя инстанцировать");
   }
 
-  /**
-   * Принимает {@code ClientHello}, отправляет {@code ServerHello} и согласует ключи сессии
-   *
-   * @param input входной поток сокета
-   * @param output выходной поток сокета
-   * @param identity серверная идентичность (сертификат + приватный ключ)
-   * @return шифр согласованной сессии
-   * @throws IOException если рукопожатие не удалось
-   */
   static SessionCipher perform(InputStream input, OutputStream output, ServerIdentity identity)
       throws IOException {
     ClientHello hello = readClientHello(input);

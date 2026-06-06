@@ -13,7 +13,6 @@ import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 
-/** Реализация {@link UserRepository} */
 public final class JooqUserRepository implements UserRepository {
   private static final Table<Record> USERS = table(name("users"));
   private static final Field<String> LOGIN = field(name("login"), SQLDataType.VARCHAR);

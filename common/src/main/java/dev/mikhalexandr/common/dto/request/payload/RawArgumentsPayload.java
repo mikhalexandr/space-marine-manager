@@ -3,7 +3,6 @@ package dev.mikhalexandr.common.dto.request.payload;
 import java.io.Serial;
 import java.util.Arrays;
 
-/** Универсальный payload для поэтапной миграции со строковых аргументов. */
 public final class RawArgumentsPayload implements CommandPayload {
   @Serial private static final long serialVersionUID = 1L;
 

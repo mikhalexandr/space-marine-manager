@@ -32,11 +32,6 @@ tasks:
     cmds:
       - ./gradlew spotlessApply
 
-  javadoc:
-    desc: Build JavaDoc
-    cmds:
-      - ./gradlew javadoc
-
   vault:init:
     desc: Init Vault, unseal, configure PKI + AppRole + policy
     cmds:

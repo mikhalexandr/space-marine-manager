@@ -15,11 +15,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Поток чтения запросов одного клиента */
 final class ClientReader implements Runnable {
   private static final Logger LOGGER = LoggerFactory.getLogger(ClientReader.class);
 
@@ -27,16 +26,16 @@ final class ClientReader implements Runnable {
   private final ServerIdentity serverIdentity;
   private final CommandExecutor commandExecutor;
   private final SessionHub sessionHub;
-  private final ForkJoinPool processingPool;
-  private final ForkJoinPool sendingPool;
+  private final ExecutorService processingPool;
+  private final ExecutorService sendingPool;
 
   ClientReader(
       Socket socket,
       ServerIdentity serverIdentity,
       CommandExecutor commandExecutor,
       SessionHub sessionHub,
-      ForkJoinPool processingPool,
-      ForkJoinPool sendingPool) {
+      ExecutorService processingPool,
+      ExecutorService sendingPool) {
     this.socket = socket;
     this.serverIdentity = serverIdentity;
     this.commandExecutor = commandExecutor;
@@ -70,22 +69,25 @@ final class ClientReader implements Runnable {
   private void readLoop(ClientConnection connection) throws IOException {
     while (connection.isOpen()) {
       byte[] frame = FrameCodec.readFrame(connection.input());
-      processingPool.execute(() -> processRequest(connection, frame));
+      CommandRequest request;
+      try {
+        request = deserializeRequest(connection.cipher().decrypt(frame));
+      } catch (IOException e) {
+        LOGGER.warn(
+            "Не удалось расшифровать/разобрать запрос {}: {}",
+            connection.remoteAddress(),
+            e.getMessage());
+        connection.close();
+        return;
+      }
+      processingPool.execute(() -> processRequest(connection, request));
     }
   }
 
-  private void processRequest(ClientConnection connection, byte[] encryptedFrame) {
-    try {
-      byte[] plaintext = connection.cipher().decrypt(encryptedFrame);
-      CommandRequest request = deserializeRequest(plaintext);
-      CommandResponse response = executeSafely(request);
-      ServerMessage message = ServerMessage.response(request.getRequestId(), response);
-      sendingPool.execute(() -> sendMessage(connection, message));
-    } catch (IOException e) {
-      LOGGER.warn(
-          "Не удалось обработать запрос {}: {}", connection.remoteAddress(), e.getMessage());
-      connection.close();
-    }
+  private void processRequest(ClientConnection connection, CommandRequest request) {
+    CommandResponse response = executeSafely(request);
+    ServerMessage message = ServerMessage.response(request.getRequestId(), response);
+    sendingPool.execute(() -> sendMessage(connection, message));
   }
 
   private CommandResponse executeSafely(CommandRequest request) {

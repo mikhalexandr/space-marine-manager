@@ -8,7 +8,6 @@ import dev.mikhalexandr.server.db.SpaceMarineRepository;
 import dev.mikhalexandr.server.managers.CollectionManager;
 import dev.mikhalexandr.server.managers.CommandManager;
 
-/** Отвечает за регистрацию команд сервера через фабрику */
 final class CommandRegistryInitializer {
   void register(
       CommandManager commandManager,

@@ -9,7 +9,6 @@ import org.jooq.impl.SQLDataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Создаёт схему БД при старте сервера */
 public final class SchemaInitializer {
   private static final Logger LOGGER = LoggerFactory.getLogger(SchemaInitializer.class);
 
@@ -22,14 +21,10 @@ public final class SchemaInitializer {
 
   private final Database database;
 
-  /**
-   * @param database корка доступа к бд
-   */
   public SchemaInitializer(Database database) {
     this.database = database;
   }
 
-  /** Создаёт недостающие объекты схемы */
   public void initialize() {
     database.execute(
         connection -> {

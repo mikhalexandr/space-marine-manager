@@ -9,13 +9,6 @@ import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
-/**
- * Симметричное шифрование тела сообщений в установленной сессии - AES-256-GCM с двумя ключами и
- * sequence numbers для защиты от replay
- *
- * <p>Формат payload по проводу: {@code IV (12 байт) || ciphertext (с GCM-тегом 16 байт в хвосте)}.
- * Sequence number в кадре не передаётся - обе стороны знают его по контексту
- */
 public final class SessionCipher {
   private static final String AES_TRANSFORMATION = "AES/GCM/NoPadding";
   private static final int GCM_TAG_BITS = 128;
@@ -34,10 +27,6 @@ public final class SessionCipher {
     this.inboundSeq = 0L;
   }
 
-  /**
-   * Шифрует plaintext исходящим ключом, привязывая GCM-тег к текущему outbound-счётчику. Счётчик
-   * после успешного шифрования инкрементируется
-   */
   public byte[] encrypt(byte[] plaintext) throws IOException {
     try {
       byte[] iv = new byte[IV_LENGTH_BYTES];
@@ -56,10 +45,6 @@ public final class SessionCipher {
     }
   }
 
-  /**
-   * Расшифровывает payload вида {@code IV || ciphertext} входящим ключом, ожидая, что AAD равен
-   * текущему inbound-счётчику. После успешной расшифровки счётчик инкрементируется
-   */
   public byte[] decrypt(byte[] payload) throws IOException {
     if (payload == null || payload.length <= IV_LENGTH_BYTES) {
       throw new IOException("Слишком короткий зашифрованный payload");

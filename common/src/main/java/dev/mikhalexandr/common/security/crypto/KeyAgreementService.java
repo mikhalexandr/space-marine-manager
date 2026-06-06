@@ -14,14 +14,6 @@ import java.security.spec.X509EncodedKeySpec;
 import javax.crypto.KeyAgreement;
 import javax.crypto.spec.SecretKeySpec;
 
-/**
- * Эфемерный обмен ключами через Elliptic Curve Diffie–Hellman
- *
- * <p>Каждая сторона генерирует одноразовую пару EC-ключей, обменивается публичной частью, и
- * локально считает один и тот же общий секрет (без передачи самого секрета по сети)
- *
- * <p>Кривая: {@code secp256r1} (она же NIST P-256)
- */
 public final class KeyAgreementService {
   private static final String EC_ALGORITHM = "EC";
   private static final String EC_CURVE = "secp256r1";
@@ -38,7 +30,6 @@ public final class KeyAgreementService {
     throw new UnsupportedOperationException("Это утилитарный класс, его нельзя инстанцировать");
   }
 
-  /** Генерирует одноразовую пару EC-ключей на кривой secp256r1 */
   public static KeyPair generateEphemeralKeyPair() throws IOException {
     try {
       KeyPairGenerator generator = KeyPairGenerator.getInstance(EC_ALGORITHM);
@@ -49,12 +40,10 @@ public final class KeyAgreementService {
     }
   }
 
-  /** Кодирует публичный EC-ключ в стандартный X.509-формат для передачи по сети */
   public static byte[] encodePublicKey(PublicKey publicKey) {
     return publicKey.getEncoded();
   }
 
-  /** Декодирует публичный EC-ключ, полученный по сети, обратно в {@link PublicKey} */
   public static PublicKey decodePublicKey(byte[] encoded) throws IOException {
     try {
       KeyFactory factory = KeyFactory.getInstance(EC_ALGORITHM);
@@ -64,10 +53,6 @@ public final class KeyAgreementService {
     }
   }
 
-  /**
-   * Считает общий секрет ECDH из своего приватного и чужого публичного эфемерных (чётенькое
-   * название для одноразовых) ключей
-   */
   public static byte[] computeSharedSecret(PrivateKey ourPrivate, PublicKey peerPublic)
       throws IOException {
     try {
@@ -80,7 +65,6 @@ public final class KeyAgreementService {
     }
   }
 
-  /** Считает transcript-хеш хендшейка: {@code SHA-256(clientEphPub || serverEphPub)} */
   public static byte[] transcriptHash(byte[] clientEphPub, byte[] serverEphPub) throws IOException {
     try {
       MessageDigest digest = MessageDigest.getInstance(TRANSCRIPT_HASH);
@@ -92,10 +76,6 @@ public final class KeyAgreementService {
     }
   }
 
-  /**
-   * Выводит пару AES-256 ключей сессии из общего ECDH-секрета через HKDF, привязав их к
-   * transcript-хешу
-   */
   public static SessionKeys deriveSessionKeys(byte[] sharedSecret, byte[] transcriptHash)
       throws IOException {
     byte[] c2sBytes = Hkdf.derive(transcriptHash, sharedSecret, INFO_C2S, AES_KEY_LENGTH_BYTES);

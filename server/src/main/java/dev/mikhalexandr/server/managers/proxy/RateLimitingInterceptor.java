@@ -8,7 +8,6 @@ import dev.mikhalexandr.server.ratelimit.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Лимитер запросов от флуда */
 public final class RateLimitingInterceptor implements CommandInterceptor {
   private static final Logger LOGGER = LoggerFactory.getLogger(RateLimitingInterceptor.class);
   private static final String ANONYMOUS = "strannij_chel";

@@ -21,9 +21,9 @@ import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 
-/** Реализация {@link IdempotencyStore} */
 public final class JooqIdempotencyStore implements IdempotencyStore {
   private static final String UNIQUE_VIOLATION = "23505";
+  private static final String LOCK_NOT_AVAILABLE = "55P03";
 
   private static final Table<Record> IDEMPOTENCY_KEYS = table(name("idempotency_keys"));
   private static final Field<String> USER_ID = field(name("user_id"), SQLDataType.VARCHAR);
@@ -59,7 +59,8 @@ public final class JooqIdempotencyStore implements IdempotencyStore {
           .set(STATUS, IdempotencyRecord.STATUS_PROCESSING)
           .execute();
     } catch (org.jooq.exception.DataAccessException e) {
-      if (UNIQUE_VIOLATION.equals(e.sqlState())) {
+      String sqlState = e.sqlState();
+      if (UNIQUE_VIOLATION.equals(sqlState) || LOCK_NOT_AVAILABLE.equals(sqlState)) {
         throw new DuplicateRequestException("Ключ идемпотентности уже занят: " + requestId);
       }
       throw e;

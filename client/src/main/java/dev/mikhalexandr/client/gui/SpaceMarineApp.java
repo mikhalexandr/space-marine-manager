@@ -1,15 +1,14 @@
 package dev.mikhalexandr.client.gui;
 
+import dev.mikhalexandr.client.app.ClientConfig;
+import dev.mikhalexandr.client.gateway.SpaceMarineGateway;
 import dev.mikhalexandr.client.network.TcpClient;
-import dev.mikhalexandr.client.security.TrustAnchor;
 import dev.mikhalexandr.common.dto.request.CommandType;
 import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.common.models.AstartesCategory;
 import dev.mikhalexandr.common.models.SpaceMarine;
-import dev.mikhalexandr.common.util.Env;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -30,15 +29,7 @@ import programming.lab8.gui.api.GatewayResult;
 import programming.lab8.gui.api.Lab8GuiConfig;
 import programming.lab8.gui.ui.DialogStyler;
 
-/** Точка входа гуи-клиента для коллекции SpaceMarine */
 public final class SpaceMarineApp extends Application {
-  private static final String DEFAULT_HOST = "localhost";
-  private static final int DEFAULT_PORT = 5050;
-  private static final int MAX_RETRY_ATTEMPTS = 3;
-  private static final long CONNECT_TIMEOUT_MILLIS = 2000L;
-  private static final long REQUEST_TIMEOUT_MILLIS = 10000L;
-  private static final String ENV_CA_CERT_PATH = "CA_CERT_PATH";
-  private static final String DEFAULT_CA_CERT_PATH = "client/certs/ca.crt";
   private static final String BUNDLE = "dev.mikhalexandr.client.gui.i18n.marine";
   private static final int RESPONSE_DIALOG_COLUMNS = 72;
   private static final int RESPONSE_DIALOG_ROWS = 16;
@@ -76,19 +67,8 @@ public final class SpaceMarineApp extends Application {
   }
 
   private TcpClient buildClient(Stage stage) {
-    List<String> raw = getParameters().getRaw();
-    String host = raw.isEmpty() ? Env.orDefault("SERVER_HOST", DEFAULT_HOST) : raw.get(0);
-    int port = raw.size() > 1 ? Integer.parseInt(raw.get(1)) : DEFAULT_PORT;
-    String caCertPath = Env.orDefault(ENV_CA_CERT_PATH, DEFAULT_CA_CERT_PATH);
     try {
-      TrustAnchor trustAnchor = TrustAnchor.loadFromFile(Path.of(caCertPath));
-      return new TcpClient(
-          host,
-          port,
-          MAX_RETRY_ATTEMPTS,
-          CONNECT_TIMEOUT_MILLIS,
-          REQUEST_TIMEOUT_MILLIS,
-          trustAnchor);
+      return ClientConfig.fromEnvAndArgs(getParameters().getRaw()).newClient();
     } catch (IOException | IllegalArgumentException e) {
       Alert alert = new Alert(Alert.AlertType.ERROR);
       alert.initOwner(stage);

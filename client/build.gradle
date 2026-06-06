@@ -17,7 +17,7 @@ javafx {
 }
 
 application {
-    mainClass = 'dev.mikhalexandr.client.gui.Launcher'
+    mainClass = 'dev.mikhalexandr.client.app.Launcher'
     applicationDefaultJvmArgs = [
         '--enable-native-access=ALL-UNNAMED',
         '--sun-misc-unsafe-memory-access=allow'

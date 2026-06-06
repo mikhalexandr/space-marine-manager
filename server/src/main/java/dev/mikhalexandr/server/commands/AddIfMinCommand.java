@@ -9,28 +9,16 @@ import dev.mikhalexandr.server.db.SpaceMarineRepository;
 import dev.mikhalexandr.server.exceptions.CommandExecutionException;
 import dev.mikhalexandr.server.managers.CollectionManager;
 
-/** Команда {@code add_if_min}: добавляет элемент, если он меньше минимального. */
 public class AddIfMinCommand extends Command {
   private final CollectionManager collectionManager;
   private final SpaceMarineRepository repository;
 
-  /**
-   * @param collectionManager менеджер коллекции в памяти
-   * @param repository репозиторий коллекции в БД
-   */
   public AddIfMinCommand(CollectionManager collectionManager, SpaceMarineRepository repository) {
     super("add_if_min", "{element}", "добавить элемент, если он меньше минимального");
     this.collectionManager = collectionManager;
     this.repository = repository;
   }
 
-  /**
-   * Добавляет элемент в БД и память по условию {@code add_if_min}
-   *
-   * @param request DTO-запрос команды
-   * @return DTO-ответ выполнения
-   * @throws CommandExecutionException если payload не содержит объект SpaceMarine
-   */
   @Override
   public CommandResponse execute(CommandRequest request) throws CommandExecutionException {
     SpaceMarine spaceMarine = extractMarine(request);

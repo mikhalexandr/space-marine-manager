@@ -6,7 +6,6 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
 
-/** Подпись и проверка байтовых сообщений через RSA-SHA256 */
 public final class MessageSigner {
   private static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
 
@@ -14,13 +13,6 @@ public final class MessageSigner {
     throw new UnsupportedOperationException("Это утилитарный класс, его нельзя инстанцировать");
   }
 
-  /**
-   * Подписывает байты приватным ключом
-   *
-   * @param data произвольные байты для подписи
-   * @param privateKey приватный ключ того, кто подписывает
-   * @return подпись
-   */
   public static byte[] sign(byte[] data, PrivateKey privateKey) throws IOException {
     try {
       Signature signature = Signature.getInstance(SIGNATURE_ALGORITHM);
@@ -32,13 +24,6 @@ public final class MessageSigner {
     }
   }
 
-  /**
-   * Проверяет подпись публичным ключом подписавшего
-   *
-   * @param data байты, которые были у того, кто подписывает
-   * @param signatureBytes сама подпись
-   * @param publicKey публичный ключ того, кто подписывает
-   */
   public static void verify(byte[] data, byte[] signatureBytes, PublicKey publicKey)
       throws IOException {
     try {

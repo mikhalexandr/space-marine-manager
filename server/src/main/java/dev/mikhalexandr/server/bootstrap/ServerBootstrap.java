@@ -30,7 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.JedisPool;
 
-/** Собирает зависимости, поднимает БД и коллекцию и запускает все, что может */
 public class ServerBootstrap {
   private static final Logger LOGGER = LoggerFactory.getLogger(ServerBootstrap.class);
 
@@ -42,8 +41,10 @@ public class ServerBootstrap {
   private static final String ENV_VAULT_COMMON_NAME = "VAULT_COMMON_NAME";
   private static final String DEFAULT_VAULT_PKI_ROLE = "server-role";
   private static final String DEFAULT_VAULT_COMMON_NAME = "localhost";
-  private static final long IDEMPOTENCY_RETENTION_HOURS = 24;
-  private static final long IDEMPOTENCY_CLEANUP_PERIOD_MINUTES = 30;
+  private static final String ENV_IDEMPOTENCY_RETENTION_HOURS = "IDEMPOTENCY_RETENTION_HOURS";
+  private static final String ENV_IDEMPOTENCY_CLEANUP_MINUTES = "IDEMPOTENCY_CLEANUP_MINUTES";
+  private static final long DEFAULT_IDEMPOTENCY_RETENTION_HOURS = 24;
+  private static final long DEFAULT_IDEMPOTENCY_CLEANUP_PERIOD_MINUTES = 30;
   private static final int RATE_LIMIT_MAX_REQUESTS = 100;
   private static final long RATE_LIMIT_WINDOW_MILLIS = 10_000L;
   private static final String ENV_REDIS_HOST = "REDIS_HOST";
@@ -56,11 +57,6 @@ public class ServerBootstrap {
   private final CommandRegistryInitializer commandRegistryInitializer =
       new CommandRegistryInitializer();
 
-  /**
-   * Запускает сервак
-   *
-   * @param port TCP-порт прослушивания
-   */
   public void run(int port) {
     LOGGER.info("Инициализация серверных зависимостей");
     DatabaseConfig databaseConfig = DatabaseConfig.fromEnv();
@@ -85,10 +81,7 @@ public class ServerBootstrap {
     IdempotencyStore idempotencyStore = new JooqIdempotencyStore(database);
     IdempotencyInterceptor idempotencyInterceptor =
         new IdempotencyInterceptor(database, idempotencyStore);
-    ScheduledExecutorService idempotencyCleanup =
-        idempotencyInterceptor.startCleanup(
-            Duration.ofHours(IDEMPOTENCY_RETENTION_HOURS),
-            Duration.ofMinutes(IDEMPOTENCY_CLEANUP_PERIOD_MINUTES));
+    ScheduledExecutorService idempotencyCleanup = startIdempotencyCleanup(idempotencyInterceptor);
 
     RedisRateLimiter rateLimiter = buildRateLimiter();
     RateLimitingInterceptor rateLimitingInterceptor = new RateLimitingInterceptor(rateLimiter);
@@ -99,6 +92,17 @@ public class ServerBootstrap {
     collectionManager.setEventPublisher(tcpServer.eventPublisher());
     registerShutdownHook(tcpServer, database, idempotencyCleanup, rateLimiter);
     tcpServer.run();
+  }
+
+  private static ScheduledExecutorService startIdempotencyCleanup(
+      IdempotencyInterceptor interceptor) {
+    long retentionHours =
+        Env.longOrDefault(ENV_IDEMPOTENCY_RETENTION_HOURS, DEFAULT_IDEMPOTENCY_RETENTION_HOURS);
+    long cleanupMinutes =
+        Env.longOrDefault(
+            ENV_IDEMPOTENCY_CLEANUP_MINUTES, DEFAULT_IDEMPOTENCY_CLEANUP_PERIOD_MINUTES);
+    return interceptor.startCleanup(
+        Duration.ofHours(retentionHours), Duration.ofMinutes(cleanupMinutes));
   }
 
   private static CommandExecutor buildCommandExecutor(
@@ -151,7 +155,6 @@ public class ServerBootstrap {
     database.close();
   }
 
-  /** Идёт во Vault и крафтит серверный сертификат через CSR */
   private ServerIdentity loadServerIdentity() {
     String vaultUrl = Env.orDefault(ENV_VAULT_URL, null);
     if (vaultUrl == null) {

@@ -5,10 +5,6 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
 
-/**
- * Модель элемента коллекции {@code SpaceMarine}. Реализует естественный порядок сортировки по
- * имени.
- */
 public class SpaceMarine implements Comparable<SpaceMarine>, Serializable {
   @Serial private static final long serialVersionUID = 1L;
 
@@ -23,17 +19,6 @@ public class SpaceMarine implements Comparable<SpaceMarine>, Serializable {
   private final Chapter chapter;
   private String owner;
 
-  /**
-   * Создает новый экземпляр SpaceMarine.
-   *
-   * @param name имя (не null и не пустое)
-   * @param coordinates координаты (не null)
-   * @param health здоровье (должно быть > 0)
-   * @param height рост
-   * @param category категория (не null)
-   * @param meleeWeapon оружие ближнего боя (может быть null)
-   * @param chapter информация об ордене (может быть null)
-   */
   public SpaceMarine(
       String name,
       Coordinates coordinates,
@@ -55,95 +40,56 @@ public class SpaceMarine implements Comparable<SpaceMarine>, Serializable {
     this.chapter = chapter;
   }
 
-  /**
-   * @return идентификатор объекта
-   */
   public Integer getId() {
     return id;
   }
 
-  /**
-   * @param id идентификатор (должен быть > 0)
-   */
   public void setId(Integer id) {
     Validator.validateId(id);
     this.id = id;
   }
 
-  /**
-   * @return имя SpaceMarine
-   */
   public String getName() {
     return name;
   }
 
-  /**
-   * @return дата создания объекта
-   */
   public java.util.Date getCreationDate() {
     return creationDate;
   }
 
-  /**
-   * @param creationDate дата создания (не null)
-   */
   public void setCreationDate(java.util.Date creationDate) {
     Validator.validateNotNull(creationDate, "SpaceMarine.creationDate");
     this.creationDate = creationDate;
   }
 
-  /**
-   * @return значение здоровья
-   */
   public float getHealth() {
     return health;
   }
 
-  /**
-   * @return категория космодесантника
-   */
   public AstartesCategory getCategory() {
     return category;
   }
 
-  /**
-   * @return данные ордена или null
-   */
   public Chapter getChapter() {
     return chapter;
   }
 
-  /**
-   * @return координаты космодесантника
-   */
   public Coordinates getCoordinates() {
     return coordinates;
   }
 
-  /**
-   * @return рост космодесантника
-   */
   public long getHeight() {
     return height;
   }
 
-  /**
-   * @return оружие ближнего боя или null
-   */
   public MeleeWeapon getMeleeWeapon() {
     return meleeWeapon;
   }
 
-  /**
-   * @return логин пользователя-владельца объекта или null, если объект ещё не сохранён
-   */
   public String getOwner() {
     return owner;
   }
 
-  /**
-   * @param owner логин пользователя-владельца объекта
-   */
   public void setOwner(String owner) {
     this.owner = owner;
   }

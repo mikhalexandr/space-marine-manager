@@ -4,7 +4,6 @@ import dev.mikhalexandr.common.dto.response.CommandResponse;
 import java.io.Serial;
 import java.io.Serializable;
 
-/** Конверт сообщений сервер -> клиент в установленной сессии */
 public final class ServerMessage implements Serializable {
   @Serial private static final long serialVersionUID = 1L;
 

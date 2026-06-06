@@ -20,7 +20,6 @@ import programming.lab8.gui.api.ObjectEditor;
 import programming.lab8.gui.i18n.Localization;
 import programming.lab8.gui.ui.DialogStyler;
 
-/** Форма создания/редактирования SpaceMarine */
 public final class SpaceMarineEditor implements ObjectEditor<SpaceMarine> {
 
   @Override
@@ -75,7 +74,6 @@ public final class SpaceMarineEditor implements ObjectEditor<SpaceMarine> {
     alert.showAndWait();
   }
 
-  /** Набор контролов формы и логика чтения/заполнения. */
   private static final class Form {
     private static final double HGAP = 10;
     private static final double VGAP = 8;

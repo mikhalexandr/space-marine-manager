@@ -12,7 +12,6 @@ import java.util.concurrent.BlockingQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Доступа к PostgreSQL с простым пулом соединений */
 public final class Database implements AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(Database.class);
   private static final int DEFAULT_POOL_SIZE = 8;
@@ -27,11 +26,6 @@ public final class Database implements AutoCloseable {
   private final ThreadLocal<Connection> activeTransaction = new ThreadLocal<>();
   private volatile boolean closed;
 
-  /**
-   * Открывает пул соединений
-   *
-   * @param config конфигурация подключения
-   */
   public Database(DatabaseConfig config) {
     this.config = config;
     loadDriver();
@@ -51,13 +45,6 @@ public final class Database implements AutoCloseable {
     }
   }
 
-  /**
-   * Выполняет что-то в рамках одного соединения из пула
-   *
-   * @param callback действие над соединением
-   * @param <T> тип результата
-   * @return результат действия
-   */
   public <T> T execute(ConnectionCallback<T> callback) {
     Connection bound = activeTransaction.get();
     if (bound != null) {
@@ -77,13 +64,6 @@ public final class Database implements AutoCloseable {
     }
   }
 
-  /**
-   * Выполняет действие в рамках одной транзакции
-   *
-   * @param callback действие над соединением транзакции
-   * @param <T> тип результата
-   * @return результат действия
-   */
   public <T> T inTransaction(ConnectionCallback<T> callback) {
     if (activeTransaction.get() != null) {
       return execute(callback);
@@ -110,7 +90,6 @@ public final class Database implements AutoCloseable {
     }
   }
 
-  /** Ставит таймауты на транзакцию */
   private static void applyTransactionTimeouts(Connection connection) throws SQLException {
     try (java.sql.Statement statement = connection.createStatement()) {
       statement.execute("SET LOCAL lock_timeout = '" + LOCK_TIMEOUT_MILLIS + "'");
@@ -194,14 +173,8 @@ public final class Database implements AutoCloseable {
     }
   }
 
-  /** Действие над соединением с бдхой */
   @FunctionalInterface
   public interface ConnectionCallback<T> {
-    /**
-     * @param connection соединение из пула
-     * @return результат действия
-     * @throws SQLException если запрос завершился ошибкой
-     */
     T run(Connection connection) throws SQLException;
   }
 }

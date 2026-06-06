@@ -10,29 +10,16 @@ import dev.mikhalexandr.server.db.SpaceMarineRepository;
 import dev.mikhalexandr.server.exceptions.CommandExecutionException;
 import dev.mikhalexandr.server.managers.CollectionManager;
 
-/** Команда {@code update}: обновляет элемент коллекции по id */
 public class UpdateCommand extends Command {
   private final CollectionManager collectionManager;
   private final SpaceMarineRepository repository;
 
-  /**
-   * @param collectionManager менеджер коллекции в памяти
-   * @param repository репозиторий коллекции в БД
-   */
   public UpdateCommand(CollectionManager collectionManager, SpaceMarineRepository repository) {
     super("update", "<id> {element}", "обновить свой элемент коллекции по id");
     this.collectionManager = collectionManager;
     this.repository = repository;
   }
 
-  /**
-   * Первый этап (payload только с id) проверяет существование и права; второй этап (id + объект)
-   * применяет изменения в бдхе и памяти
-   *
-   * @param request DTO-запрос команды
-   * @return DTO-ответ выполнения
-   * @throws CommandExecutionException если payload некорректен или объект чужой/не найден
-   */
   @Override
   public CommandResponse execute(CommandRequest request) throws CommandExecutionException {
     IdPayload idPayload = CommandPayloads.findIdPayload(request).orElse(null);

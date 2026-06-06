@@ -1,6 +1,7 @@
-package dev.mikhalexandr.client.gui;
+package dev.mikhalexandr.client.app;
 
-/** Обёртка для запуска из фэт джар */
+import dev.mikhalexandr.client.gui.SpaceMarineApp;
+
 public final class Launcher {
   private Launcher() {
     throw new UnsupportedOperationException("Это утилитарный класс, его нельзя инстанцировать");

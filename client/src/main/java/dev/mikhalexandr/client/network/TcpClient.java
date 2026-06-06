@@ -1,5 +1,6 @@
 package dev.mikhalexandr.client.network;
 
+import dev.mikhalexandr.client.exceptions.RequestDeadlineExceededException;
 import dev.mikhalexandr.client.security.TrustAnchor;
 import dev.mikhalexandr.common.dto.auth.UserCredentials;
 import dev.mikhalexandr.common.dto.event.CollectionEvent;
@@ -32,8 +33,10 @@ import java.security.KeyPair;
 import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -41,7 +44,6 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** TCP-клиент */
 public class TcpClient implements Closeable {
   private static final Logger LOGGER = LoggerFactory.getLogger(TcpClient.class);
   private static final long RETRY_BACKOFF_STEP_MILLIS = 300L;
@@ -49,84 +51,102 @@ public class TcpClient implements Closeable {
 
   private final String host;
   private final int port;
-  private final int maxAttempts;
+  private final int connectMaxAttempts;
+  private final int deadlineMaxAttempts;
   private final long connectTimeoutMillis;
-  private final long requestTimeoutMillis;
+  private final long requestDeadlineMillis;
   private final TrustAnchor trustAnchor;
   private final String clientId = UUID.randomUUID().toString();
-  private final Object sendLock = new Object();
+
+  private final Object connectionLock = new Object();
+  private final Object writeLock = new Object();
+  private final Map<String, CompletableFuture<CommandResponse>> pending = new ConcurrentHashMap<>();
 
   private Selector selector;
   private SocketChannel channel;
   private SelectionKey channelKey;
   private InputStream in;
-  private OutputStream out;
+  private volatile OutputStream out;
   private X509Certificate serverCertificate;
-  private SessionCipher sessionCipher;
+  private volatile SessionCipher sessionCipher;
   private UserCredentials credentials;
   private Thread readerThread;
   private volatile boolean shutdown;
-  private volatile CompletableFuture<CommandResponse> pendingResponse;
-  private volatile String pendingRequestId;
   private volatile Consumer<CollectionEvent> eventListener;
 
   public TcpClient(
       String host,
       int port,
-      int maxAttempts,
+      int connectMaxAttempts,
+      int deadlineMaxAttempts,
       long connectTimeoutMillis,
-      long requestTimeoutMillis,
+      long requestDeadlineMillis,
       TrustAnchor trustAnchor) {
     this.host = host;
     this.port = port;
-    this.maxAttempts = maxAttempts;
+    this.connectMaxAttempts = connectMaxAttempts;
+    this.deadlineMaxAttempts = deadlineMaxAttempts;
     this.connectTimeoutMillis = connectTimeoutMillis;
-    this.requestTimeoutMillis = requestTimeoutMillis;
+    this.requestDeadlineMillis = requestDeadlineMillis;
     this.trustAnchor = trustAnchor;
   }
 
-  /**
-   * Отправляет запрос на сервер. Лениво открывает соединение и делает handshake при первом вызове
-   *
-   * @param request запрос команды
-   * @return ответ сервера
-   */
   public CommandResponse send(CommandRequest request) throws IOException {
     attachCredentials(request);
-    synchronized (sendLock) {
-      IOException lastException = null;
-      for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          ensureConnected();
-          return exchange(request);
-        } catch (ConnectException e) {
-          closeQuietly();
-          throw new IOException(
-              String.format("Сервер недоступен (%s:%d): %s", host, port, e.getMessage()), e);
-        } catch (IOException e) {
-          lastException = e;
-          LOGGER.warn(
-              "Попытка {} из {} оборвалась ({}), переподключаюсь...",
-              attempt,
-              maxAttempts,
-              e.getMessage());
-          closeQuietly();
-          if (attempt < maxAttempts) {
-            sleepQuietly(attempt * RETRY_BACKOFF_STEP_MILLIS);
-          }
+    int connectAttempts = 0;
+    int deadlineAttempts = 0;
+    while (true) {
+      try {
+        ensureConnected();
+        return exchange(request);
+      } catch (RequestDeadlineExceededException e) {
+        if (++deadlineAttempts >= deadlineMaxAttempts) {
+          throw e;
         }
+        logDeadlineRetry(deadlineAttempts, request);
+      } catch (ConnectException e) {
+        closeQuietly();
+        throw connectionRefused(e);
+      } catch (IOException e) {
+        closeQuietly();
+        if (++connectAttempts >= connectMaxAttempts) {
+          throw unavailable(e);
+        }
+        reconnectAfter(connectAttempts, e);
       }
-      throw new IOException(
-          String.format("Сервер временно недоступен (%s:%d), попыток: %d", host, port, maxAttempts),
-          lastException);
     }
   }
 
-  /**
-   * Регистрирует слушатель серверных push-событий
-   *
-   * @param listener потребитель событий коллекции или null для отписки
-   */
+  private void logDeadlineRetry(int attempt, CommandRequest request) {
+    LOGGER.warn(
+        "Дедлайн ответа (попытка {} из {}), повтор тем же requestId {}",
+        attempt,
+        deadlineMaxAttempts,
+        request.getRequestId());
+  }
+
+  private void reconnectAfter(int attempt, IOException cause) {
+    LOGGER.warn(
+        "Соединение оборвалось (попытка {} из {}: {}), переподключаюсь...",
+        attempt,
+        connectMaxAttempts,
+        cause.getMessage());
+    sleepQuietly(attempt * RETRY_BACKOFF_STEP_MILLIS);
+  }
+
+  private IOException connectionRefused(ConnectException cause) {
+    return new IOException(
+        String.format("Сервер недоступен (%s:%d): %s", host, port, cause.getMessage()), cause);
+  }
+
+  private IOException unavailable(IOException cause) {
+    return new IOException(
+        String.format(
+            "Сервер временно недоступен (%s:%d), попыток подключения: %d",
+            host, port, connectMaxAttempts),
+        cause);
+  }
+
   public void setEventListener(Consumer<CollectionEvent> listener) {
     this.eventListener = listener;
   }
@@ -137,12 +157,6 @@ public class TcpClient implements Closeable {
     closeQuietly();
   }
 
-  /**
-   * Сохраняет учётные данные текущего пользователя. После этого они автоматически прикрепляются к
-   * каждому запросу
-   *
-   * @param credentials логин и пароль аутентифицированного пользователя
-   */
   public void setCredentials(UserCredentials credentials) {
     this.credentials = credentials;
   }
@@ -154,15 +168,17 @@ public class TcpClient implements Closeable {
   }
 
   private CommandResponse exchange(CommandRequest request) throws IOException {
+    String requestId = request.getRequestId();
     CompletableFuture<CommandResponse> future = new CompletableFuture<>();
-    pendingRequestId = request.getRequestId();
-    pendingResponse = future;
+    pending.put(requestId, future);
     try {
-      byte[] encrypted = sessionCipher.encrypt(Serializer.serialize(request));
-      FrameCodec.writeFrame(out, encrypted);
-      return future.get(requestTimeoutMillis, TimeUnit.MILLISECONDS);
+      writeRequest(request);
+      return future.get(requestDeadlineMillis, TimeUnit.MILLISECONDS);
     } catch (TimeoutException e) {
-      throw new IOException("Таймаут ожидания ответа от сервера", e);
+      throw new RequestDeadlineExceededException(
+          "Сервер не ответил за "
+              + requestDeadlineMillis
+              + " мс. Запрос мог быть применён; повтор безопасен за счёт идемпотентности");
     } catch (ExecutionException e) {
       Throwable cause = e.getCause();
       if (cause instanceof IOException io) {
@@ -173,32 +189,45 @@ public class TcpClient implements Closeable {
       Thread.currentThread().interrupt();
       throw new IOException("Ожидание ответа прервано", e);
     } finally {
-      pendingResponse = null;
-      pendingRequestId = null;
+      pending.remove(requestId, future);
+    }
+  }
+
+  private void writeRequest(CommandRequest request) throws IOException {
+    synchronized (writeLock) {
+      SessionCipher cipher = this.sessionCipher;
+      OutputStream output = this.out;
+      if (cipher == null || output == null) {
+        throw new IOException("Соединение не готово");
+      }
+      byte[] encrypted = cipher.encrypt(Serializer.serialize(request));
+      FrameCodec.writeFrame(output, encrypted);
     }
   }
 
   private void ensureConnected() throws IOException {
-    if (shutdown) {
-      throw new IOException("Клиент закрыт");
+    synchronized (connectionLock) {
+      if (shutdown) {
+        throw new IOException("Клиент закрыт");
+      }
+      if (channel != null
+          && channel.isConnected()
+          && sessionCipher != null
+          && readerThread != null
+          && readerThread.isAlive()) {
+        return;
+      }
+      closeQuietly();
+      LOGGER.info("Подключаюсь к серверу {}:{}", host, port);
+      openConnection();
+      switchToBlocking();
+      performHandshake();
+      startReader();
+      LOGGER.info(
+          "Handshake завершён: server CN={} (issuer={})",
+          serverCertificate.getSubjectX500Principal(),
+          serverCertificate.getIssuerX500Principal());
     }
-    if (channel != null
-        && channel.isConnected()
-        && sessionCipher != null
-        && readerThread != null
-        && readerThread.isAlive()) {
-      return;
-    }
-    closeQuietly();
-    LOGGER.info("Подключаюсь к серверу {}:{}", host, port);
-    openConnection();
-    switchToBlocking();
-    performHandshake();
-    startReader();
-    LOGGER.info(
-        "Handshake завершён: server CN={} (issuer={})",
-        serverCertificate.getSubjectX500Principal(),
-        serverCertificate.getIssuerX500Principal());
   }
 
   private void openConnection() throws IOException {
@@ -229,7 +258,6 @@ public class TcpClient implements Closeable {
     }
   }
 
-  /** Снимает канал с селектора и переводит его в блокирующий режим, оборачивая в потоки */
   private void switchToBlocking() throws IOException {
     if (channelKey != null) {
       channelKey.cancel();
@@ -317,20 +345,19 @@ public class TcpClient implements Closeable {
       }
       return;
     }
-    CompletableFuture<CommandResponse> future = pendingResponse;
-    String expected = pendingRequestId;
-    if (future != null && (expected == null || expected.equals(message.getCorrelationId()))) {
+    String correlationId = message.getCorrelationId();
+    CompletableFuture<CommandResponse> future =
+        correlationId == null ? null : pending.remove(correlationId);
+    if (future != null) {
       future.complete(message.getResponse());
     } else {
-      LOGGER.debug("Ответ без ожидающего запроса (correlationId={})", message.getCorrelationId());
+      LOGGER.debug("Ответ без ожидающего запроса (correlationId={})", correlationId);
     }
   }
 
   private void failPending(IOException error) {
-    CompletableFuture<CommandResponse> future = pendingResponse;
-    if (future != null && !future.isDone()) {
-      future.completeExceptionally(error);
-    }
+    pending.forEach((id, future) -> future.completeExceptionally(error));
+    pending.clear();
   }
 
   private static ServerMessage deserializeServerMessage(byte[] payload) throws IOException {
@@ -350,17 +377,19 @@ public class TcpClient implements Closeable {
   }
 
   private void closeQuietly() {
-    serverCertificate = null;
-    sessionCipher = null;
-    channelKey = null;
-    closeResource(in);
-    in = null;
-    closeResource(out);
-    out = null;
-    closeResource(channel);
-    channel = null;
-    closeResource(selector);
-    selector = null;
+    synchronized (connectionLock) {
+      serverCertificate = null;
+      sessionCipher = null;
+      channelKey = null;
+      closeResource(in);
+      in = null;
+      closeResource(out);
+      out = null;
+      closeResource(channel);
+      channel = null;
+      closeResource(selector);
+      selector = null;
+    }
     failPending(new IOException("Соединение закрыто"));
   }
 

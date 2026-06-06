@@ -2,7 +2,6 @@ package dev.mikhalexandr.server.managers.proxy;
 
 import dev.mikhalexandr.common.dto.auth.UserCredentials;
 import dev.mikhalexandr.common.dto.request.CommandRequest;
-import dev.mikhalexandr.common.dto.request.CommandType;
 import dev.mikhalexandr.common.dto.request.payload.CommandPayload;
 import dev.mikhalexandr.common.dto.response.CommandResponse;
 import dev.mikhalexandr.common.util.Serializer;
@@ -17,10 +16,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.EnumSet;
 import java.util.HexFormat;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -28,20 +25,8 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Обеспечивает идемпотентность изменяющих команд через таблицу {@code idempotency_keys} в той же
- * постгре
- */
 public final class IdempotencyInterceptor implements CommandInterceptor {
   private static final Logger LOGGER = LoggerFactory.getLogger(IdempotencyInterceptor.class);
-
-  private static final Set<CommandType> MUTATING_COMMANDS =
-      EnumSet.of(
-          CommandType.ADD,
-          CommandType.UPDATE,
-          CommandType.REMOVE_BY_ID,
-          CommandType.CLEAR,
-          CommandType.ADD_IF_MIN);
 
   private static final int MAX_ATTEMPTS = 5;
   private static final String ANONYMOUS = "strannij_chel";
@@ -85,12 +70,6 @@ public final class IdempotencyInterceptor implements CommandInterceptor {
     throw new IdempotencyConflictException("Не удалось обработать запрос идемпотентно, отдыхай");
   }
 
-  /**
-   * Возвращает уже сохранённый ответ по ключу, если он есть и готов; {@link Optional#empty()}, если
-   * ключ освободился и нужна повторная попытка
-   *
-   * @throws IdempotencyConflictException если requestId переиспользован с другим payload
-   */
   private Optional<CommandResponse> readExisting(
       String userId, String requestId, String requestHash) {
     Optional<IdempotencyRecord> record = store.find(userId, requestId);
@@ -109,7 +88,7 @@ public final class IdempotencyInterceptor implements CommandInterceptor {
   }
 
   private static boolean isMutating(CommandRequest request) {
-    return MUTATING_COMMANDS.contains(request.getCommandType());
+    return request.getCommandType().isMutating();
   }
 
   private static String resolveUserId(CommandRequest request) {
@@ -120,7 +99,6 @@ public final class IdempotencyInterceptor implements CommandInterceptor {
     return credentials.login().trim();
   }
 
-  /** Хэш по типу команды и payload */
   private static String hashOf(CommandRequest request) {
     try {
       MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -135,13 +113,6 @@ public final class IdempotencyInterceptor implements CommandInterceptor {
     }
   }
 
-  /**
-   * Запускает фоновую очистку устаревших записей идемпотентности
-   *
-   * @param retention срок хранения записей
-   * @param period период запуска очистки
-   * @return запущенный планировщик
-   */
   public ScheduledExecutorService startCleanup(Duration retention, Duration period) {
     ThreadFactory factory =
         runnable -> {
